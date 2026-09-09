@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "config": {
+    "gameName": "",
+    "buyIn": 20,
+    "currency": "EUR",
+    "locale": "hr-HR"
+  },
+  "players": [],
+  "nights": []
+}

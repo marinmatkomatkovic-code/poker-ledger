@@ -1,0 +1,17 @@
+{
+  "name": "Poker Night Ledger",
+  "short_name": "Poker",
+  "description": "Buy-ins, cash-outs, profit and records for a home poker game.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F4F5F1",
+  "theme_color": "#F4F5F1",
+  "categories": ["utilities", "sports"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

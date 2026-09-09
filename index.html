@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Poker Night Ledger</title>
+<meta name="description" content="Buy-ins, cash-outs, profit and records for a home poker game.">
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F4F5F1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E130F" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+
+<link rel="icon" href="icons/icon-192.png" sizes="192x192">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Poker">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brandrow">
+      <div class="brandtext">
+        <p class="eyebrow" id="eyebrow">Home game ledger</p>
+        <h1 id="gametitle">Poker Night Ledger</h1>
+      </div>
+      <div class="headtools">
+        <span class="savechip" id="savechip"></span>
+        <button class="iconbtn" id="btn-settings" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="notices"></div>
+  <main id="view" role="tabpanel"></main>
+  <p class="footnote" id="footnote"></p>
+</div>
+
+<nav class="bottomnav" id="bottomnav" aria-label="Sections">
+  <div class="navrow" id="navrow"></div>
+</nav>
+
+<div class="tooltip" id="tooltip" hidden></div>
+
+<script src="store.js"></script>
+<script src="stats.js"></script>
+<script src="charts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
