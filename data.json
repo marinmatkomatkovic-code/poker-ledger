@@ -37,7 +37,7 @@
       "id": "2026-09-10",
       "date": "2026-09-10",
       "buyIn": 20,
-      "status": "open",
+      "status": "closed",
       "entries": {
         "kuomic": {
           "buyIns": 3,
@@ -64,7 +64,8 @@
         }
       ],
       "notes": "",
-      "createdAt": "2026-09-09T23:09:53.383Z"
+      "createdAt": "2026-09-09T23:09:53.383Z",
+      "closedAt": "2026-09-09T23:11:10.698Z"
     }
   ]
 }
