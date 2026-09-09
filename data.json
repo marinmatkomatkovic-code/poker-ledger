@@ -6,6 +6,13 @@
     "currency": "EUR",
     "locale": "hr-HR"
   },
-  "players": [],
+  "players": [
+    {
+      "id": "kuomic",
+      "name": "Kuomić",
+      "active": true,
+      "joined": "2026-09-10"
+    }
+  ],
   "nights": []
 }
