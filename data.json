@@ -53,7 +53,7 @@
         },
         "k-b": {
           "buyIns": 3,
-          "cashOut": null
+          "cashOut": -40
         }
       },
       "pots": [
