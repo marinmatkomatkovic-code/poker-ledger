@@ -18,6 +18,12 @@
       "name": "Lamumu",
       "active": true,
       "joined": "2026-09-10"
+    },
+    {
+      "id": "amdrija",
+      "name": "Amdrija",
+      "active": true,
+      "joined": "2026-09-10"
     }
   ],
   "nights": []
