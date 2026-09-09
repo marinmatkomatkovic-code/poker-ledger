@@ -41,11 +41,11 @@
       "entries": {
         "kuomic": {
           "buyIns": 3,
-          "cashOut": null
+          "cashOut": 0
         },
         "lamumu": {
           "buyIns": 9,
-          "cashOut": null
+          "cashOut": 0
         },
         "amdrija": {
           "buyIns": 4,
