@@ -32,5 +32,33 @@
       "joined": "2026-09-10"
     }
   ],
-  "nights": []
+  "nights": [
+    {
+      "id": "2026-09-10",
+      "date": "2026-09-10",
+      "buyIn": 20,
+      "status": "open",
+      "entries": {
+        "kuomic": {
+          "buyIns": 3,
+          "cashOut": null
+        },
+        "lamumu": {
+          "buyIns": 9,
+          "cashOut": null
+        },
+        "amdrija": {
+          "buyIns": 4,
+          "cashOut": null
+        },
+        "k-b": {
+          "buyIns": 3,
+          "cashOut": null
+        }
+      },
+      "pots": [],
+      "notes": "",
+      "createdAt": "2026-09-09T23:09:53.383Z"
+    }
+  ]
 }
