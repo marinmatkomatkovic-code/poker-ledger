@@ -56,7 +56,13 @@
           "cashOut": null
         }
       },
-      "pots": [],
+      "pots": [
+        {
+          "amount": 78,
+          "winner": "",
+          "note": "Amdrija"
+        }
+      ],
       "notes": "",
       "createdAt": "2026-09-09T23:09:53.383Z"
     }
