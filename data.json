@@ -24,6 +24,12 @@
       "name": "Amdrija",
       "active": true,
       "joined": "2026-09-10"
+    },
+    {
+      "id": "k-b",
+      "name": "k.b",
+      "active": true,
+      "joined": "2026-09-10"
     }
   ],
   "nights": []
