@@ -109,6 +109,13 @@ Two things to lean on:
   later.
 - **Log a big pot.** Optional. When something worth remembering happens, drop the
   amount and who won it. Those feed the *Biggest pot* record.
+- **Start and finish times.** The start time is filled in when you start the night
+  (change it if you're entering late); the finish time stamps itself when you close,
+  if it's still blank. A finish earlier than the start means you played past
+  midnight. Timed nights feed *hours at the table*, *profit per hour* and the
+  *Longest night* record; untimed nights stay out of those, so old nights never
+  get divided by hours nobody wrote down. To time an old night, reopen it, fill in
+  both times and close it again.
 
 Closing the night locks it into the standings. If you got something wrong, open
 **History**, find the night, and *Reopen to edit* — every figure that depends on it
@@ -154,6 +161,8 @@ seconds.
     "date": "2026-09-09",
     "buyIn": 20,                 // snapshotted, so changing the default never rewrites history
     "status": "open",            // or "closed" — only closed nights count
+    "start": "20:30",            // local clock times, optional; "" = untimed
+    "end": "01:45",              // earlier than start = past midnight
     "entries": {
       "ivan": { "buyIns": 2, "cashOut": 45 }
     },

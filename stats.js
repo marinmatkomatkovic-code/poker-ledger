@@ -50,6 +50,26 @@ PL.Stats = (function () {
     return num(row.cashOut) - num(row.buyIns) * num(night.buyIn);
   }
 
+  /** "HH:MM" → minutes after midnight, or null if it isn't a clock time. */
+  function clock(v) {
+    var m = /^(\d{1,2}):(\d{2})$/.exec(String(v == null ? "" : v).trim());
+    if (!m) return null;
+    var h = +m[1], mi = +m[2];
+    return h > 23 || mi > 59 ? null : h * 60 + mi;
+  }
+
+  /** Minutes the night ran, or null when it has no start or finish time.
+   *  Times are local clock times; a finish earlier than the start means the
+   *  game went past midnight. Nights recorded before this existed are
+   *  simply untimed and stay out of every per-hour figure. */
+  function duration(night) {
+    var a = clock(night && night.start), b = clock(night && night.end);
+    if (a === null || b === null) return null;
+    var d = b - a;
+    if (d < 0) d += 24 * 60;
+    return d > 0 ? d : null;
+  }
+
   function moneyIn(night, pid) {
     var row = (night.entries || {})[pid];
     return row ? num(row.buyIns) * num(night.buyIn) : 0;
@@ -98,6 +118,13 @@ PL.Stats = (function () {
         if (r.best === null || n > r.best) { r.best = n; r.bestNight = night.date; }
         if (r.worst === null || n < r.worst) { r.worst = n; r.worstNight = night.date; }
         if (num(row.buyIns) > r.mostBuyIns) { r.mostBuyIns = num(row.buyIns); r.mostBuyInsNight = night.date; }
+        var mins = duration(night);
+        if (mins !== null) {
+          r.minutes += mins;
+          r.timedNights++;
+          r.timedPnl += n;
+          if (r.longest === null || mins > r.longest) { r.longest = mins; r.longestNight = night.date; }
+        }
       });
     });
 
@@ -106,6 +133,9 @@ PL.Stats = (function () {
       r.perNight = r.nights ? r.pnl / r.nights : 0;
       r.avgBuyIns = r.nights ? r.buyIns / r.nights : 0;
       r.winRate = r.nights ? r.winning / r.nights : 0;
+      // Per hour only counts nights with times on them, so an untimed
+      // night's result never gets divided by hours it didn't record.
+      r.perHour = r.minutes ? r.timedPnl / (r.minutes / 60) : null;
       return r;
     });
   }
@@ -115,7 +145,8 @@ PL.Stats = (function () {
       id: id, name: name, active: active,
       nights: 0, buyIns: 0, moneyIn: 0, moneyOut: 0, pnl: 0, winning: 0,
       best: null, worst: null, bestNight: "", worstNight: "",
-      mostBuyIns: 0, mostBuyInsNight: ""
+      mostBuyIns: 0, mostBuyInsNight: "",
+      minutes: 0, timedNights: 0, timedPnl: 0, longest: null, longestNight: ""
     };
   }
 
@@ -226,6 +257,14 @@ PL.Stats = (function () {
     add("winrate", "Best hit rate", "Share of nights finished up, three minimum",
       regulars.map(function (r) { return row(r.name, r.id, r.winRate, Math.round(r.winRate * r.nights) + " of " + r.nights, "pct"); }), "desc");
 
+    add("hours", "Most time at the table", "Hours played, timed nights only",
+      table.filter(function (r) { return r.minutes > 0; })
+        .map(function (r) { return row(r.name, r.id, r.minutes, r.timedNights + " night" + (r.timedNights === 1 ? "" : "s"), "duration"); }), "desc");
+
+    add("perhour", "Best hourly rate", "Profit per hour, three timed nights minimum",
+      table.filter(function (r) { return r.timedNights >= 3; })
+        .map(function (r) { return row(r.name, r.id, r.perHour, Math.round(r.minutes / 60) + " h", "rate"); }), "desc");
+
     add("streak", "Longest hot streak", "Consecutive nights in profit",
       table.map(function (r) { return row(r.name, r.id, winStreak(data, r.id), "", "int"); }).filter(function (r) { return r.value > 1; }), "desc");
 
@@ -238,6 +277,12 @@ PL.Stats = (function () {
         var t = nightTotals(night);
         return row(t.players + " players", null, t.pot, night.date, "amount");
       }), "desc");
+
+    add("longnight", "Longest night", "Start to last cash-out",
+      nights.filter(function (night) { return duration(night) !== null; })
+        .map(function (night) {
+          return row(nightTotals(night).players + " players", null, duration(night), night.date, "duration");
+        }), "desc");
 
     /* notable single pots, logged by hand */
     var pots = [];
@@ -258,6 +303,8 @@ PL.Stats = (function () {
     playerById: playerById,
     nameOf: nameOf,
     net: net,
+    clock: clock,
+    duration: duration,
     moneyIn: moneyIn,
     hasCashOut: hasCashOut,
     nightTotals: nightTotals,

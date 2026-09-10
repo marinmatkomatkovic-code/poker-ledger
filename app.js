@@ -76,12 +76,47 @@
     if (format === "int") return String(Math.round(value));
     if (format === "pct") return Math.round(value * 100) + "%";
     if (format === "amount") return money(value);
+    if (format === "duration") return hm(value);
+    if (format === "rate") return fmtRate(value);
     return signed(value);
   }
 
   function todayISO() {
     var d = new Date();
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function yesterdayISO() {
+    var d = new Date(); d.setDate(d.getDate() - 1);
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+
+  function nowHM() {
+    var d = new Date();
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  /** Minutes as "4 h 15 min" or "45 min"; long totals round to whole hours. */
+  function hm(mins) {
+    if (mins === null || mins === undefined || !isFinite(mins)) return "—";
+    mins = Math.round(mins);
+    var h = Math.floor(mins / 60), m = mins % 60;
+    if (h >= 10) return Math.round(mins / 60) + " h";
+    if (!h) return m + " min";
+    return h + " h" + (m ? " " + m + " min" : "");
+  }
+
+  function fmtRate(v) { return v === null || v === undefined ? "—" : signed(Math.round(v * 100) / 100) + "/h"; }
+
+  /** How long a night has run: its recorded length once it has a finish
+   *  time, otherwise start-to-now while it is still tonight's game. */
+  function elapsed(night) {
+    if (night.end) return Stats.duration(night);
+    var a = Stats.clock(night.start), b = Stats.clock(nowHM());
+    if (a === null) return null;
+    if (night.date === todayISO()) return b >= a ? b - a : null;
+    if (night.date === yesterdayISO()) return (b - a + 24 * 60) % (24 * 60);
+    return null;
   }
 
   function prettyDate(iso) { return Charts.fullDate(iso); }
@@ -178,7 +213,7 @@
     }, "Remove player");
   }
 
-  function startNight(date, buyIn, ids) {
+  function startNight(date, buyIn, ids, start) {
     if (!canEdit()) return;
     var id = uniqueId(date, D().nights.map(function (n) { return n.id; }));
     Store.commit(function (d) {
@@ -186,6 +221,7 @@
       ids.forEach(function (pid) { entries[pid] = { buyIns: 1, cashOut: null }; });
       d.nights.push({
         id: id, date: date, buyIn: buyIn, status: "open",
+        start: Stats.clock(start) === null ? "" : start, end: "",
         entries: entries, pots: [], notes: "", createdAt: new Date().toISOString()
       });
       d.config.buyIn = buyIn;
@@ -275,6 +311,8 @@
         : tile("Balance", "—", "Waiting on " + (t.players - t.counted) + " cash-out" + (t.players - t.counted === 1 ? "" : "s"), "zero")) +
       "</div>";
 
+    h += clockRow(live, editable);
+
     h += '<div class="playerrows">';
     ids.forEach(function (pid) {
       var row = e[pid] || {};
@@ -353,6 +391,28 @@
     return h;
   }
 
+  /* Start and finish times. Local clock times, so a finish before the start
+     reads as past midnight. Finish fills itself in at close if left blank. */
+  function clockRow(n, editable) {
+    var run = elapsed(n);
+    var runLabel = n.end ? "Ran for" : "Running";
+    var runVal = '<span class="mono clock-run" data-elapsed>' + esc(hm(run)) + "</span>";
+    if (!editable) {
+      if (!n.start) return "";
+      return '<div class="clockrow">' +
+        '<span class="clk"><span class="field-label">Started</span><span class="mono">' + esc(n.start) + "</span></span>" +
+        (n.end ? '<span class="clk"><span class="field-label">Finished</span><span class="mono">' + esc(n.end) + "</span></span>" : "") +
+        '<span class="clk"><span class="field-label">' + runLabel + "</span>" + runVal + "</span></div>";
+    }
+    return '<div class="clockrow">' +
+      '<span class="clk"><label class="field-label" for="t-start">Started</label>' +
+        '<input class="input input-time" type="time" id="t-start" data-act="setstart" value="' + esc(n.start || "") + '"></span>' +
+      '<span class="clk"><label class="field-label" for="t-end">Finished</label>' +
+        '<input class="input input-time" type="time" id="t-end" data-act="setend" value="' + esc(n.end || "") + '"></span>' +
+      '<span class="clk"><span class="field-label">' + runLabel + "</span>" + runVal + "</span>" +
+      "</div>";
+  }
+
   function tile(label, value, sub, cls, tileCls) {
     return '<div class="tile' + (tileCls ? " " + tileCls : "") + '"><span class="tile-label">' + esc(label) + "</span>" +
       '<span class="tile-value ' + (cls || "") + '">' + esc(value) + "</span>" +
@@ -390,6 +450,8 @@
           '<input class="input" type="date" id="new-date" value="' + todayISO() + '"></div>' +
         '<div class="fld" style="flex:0 1 130px"><label class="field-label" for="new-buyin">Buy-in</label>' +
           '<input class="input input-num" id="new-buyin" inputmode="decimal" value="' + esc(cfg().buyIn) + '"></div>' +
+        '<div class="fld" style="flex:0 1 130px"><label class="field-label" for="new-start">Start time</label>' +
+          '<input class="input input-time" type="time" id="new-start" value="' + nowHM() + '"></div>' +
       "</div>" +
       '<div class="addrow" style="border-top:0"><span class="field-label" style="margin:0 4px 0 0">At the table</span>' +
         actives.map(function (p) {
@@ -416,6 +478,7 @@
       return ((a[key] || 0) - (b[key] || 0)) * dir || a.name.localeCompare(b.name);
     });
     var maxAbs = rows.reduce(function (m, r) { return Math.max(m, Math.abs(r.pnl)); }, 0) || 1;
+    var timed = rows.some(function (r) { return r.minutes > 0; });
 
     var cols = [
       { k: "name", label: "Player", cls: "name" },
@@ -426,6 +489,7 @@
       { k: "pnl", label: "P&L", cls: "num" },
       { k: "perNight", label: "Per night", cls: "num" }
     ];
+    if (timed) cols.push({ k: "perHour", label: "Per hour", cls: "num" });
 
     var h = '<div class="sec-head"><h2>All-time standings</h2>' +
       '<p class="sec-note">Closed nights only. Tap a row for that player.</p></div>';
@@ -448,6 +512,7 @@
         '<td class="num">' + money(r.moneyOut) + "</td>" +
         '<td class="num ' + signClass(r.pnl) + '" style="font-weight:600">' + signed(r.pnl) + "</td>" +
         '<td class="num ' + signClass(r.perNight) + '">' + (r.nights ? signed(r.perNight) : "—") + "</td>" +
+        (timed ? '<td class="num ' + (r.perHour === null ? "zero" : signClass(r.perHour)) + '">' + esc(fmtRate(r.perHour)) + "</td>" : "") +
         '<td><div class="pnlbar"><div class="half l"><i style="width:' + lp.toFixed(1) + '%"></i></div>' +
           '<div class="axis"></div><div class="half r"><i style="width:' + rp.toFixed(1) + '%"></i></div></div></td>' +
         "</tr>";
@@ -463,7 +528,7 @@
       '<td class="num">' + money(tot.moneyIn) + "</td>" +
       '<td class="num">' + money(tot.moneyOut) + "</td>" +
       '<td class="num ' + signClass(tot.pnl) + '">' + (Math.abs(tot.pnl) < 0.005 ? money(0) : signed(tot.pnl)) + "</td>" +
-      "<td></td><td></td></tr></tfoot></table></div></div>";
+      "<td></td>" + (timed ? "<td></td>" : "") + "<td></td></tr></tfoot></table></div></div>";
 
     h += '<div class="legend"><span class="key"><span class="sw" style="background:var(--pos)"></span>Up over all time</span>' +
       '<span class="key"><span class="sw" style="background:var(--neg)"></span>Down over all time</span></div>';
@@ -495,7 +560,7 @@
           (r.whoId ? avatar(r.whoId, "av-sm") : "") +
           '<span class="who">' + esc(r.who) + "</span>" +
           (r.when ? '<span class="when">' + esc(/^\d{4}-\d{2}-\d{2}$/.test(r.when) ? Charts.shortDate(r.when) : r.when) + "</span>" : "") +
-          '<span class="val ' + (r.format === "money" ? signClass(r.value) : "") + '">' + esc(fmtRecord(r.value, r.format)) + "</span>" +
+          '<span class="val ' + (r.format === "money" || r.format === "rate" ? signClass(r.value) : "") + '">' + esc(fmtRecord(r.value, r.format)) + "</span>" +
           "</div>";
       });
       h += "</div>";
@@ -513,7 +578,9 @@
         "<p>Closed nights land here — the money on the table, who turned up, and every result.</p></div></div>";
     }
 
-    var h = '<div class="sec-head"><h2>History</h2><p class="sec-note">' + closed.length + " night" + (closed.length === 1 ? "" : "s") + " played</p></div>";
+    var totalMins = closed.reduce(function (a, n) { return a + (Stats.duration(n) || 0); }, 0);
+    var h = '<div class="sec-head"><h2>History</h2><p class="sec-note">' + closed.length + " night" + (closed.length === 1 ? "" : "s") + " played" +
+      (totalMins ? " · " + esc(hm(totalMins)) + " at the table" : "") + "</p></div>";
 
     h += '<div class="panel"><div class="chartbox">' +
       '<p class="chart-title">Money on the table</p>' +
@@ -560,7 +627,8 @@
         '<button class="night-head" data-act="togglenight" data-sid="' + esc(n.id) + '" aria-expanded="' + open + '">' +
           '<span class="caret">' + (open ? "▾" : "▸") + "</span>" +
           '<span class="night-date">' + esc(weekday(n.date) + " " + Charts.fullDate(n.date)) + "</span>" +
-          '<span class="night-meta">' + t.players + " players · " + t.buyIns + " buy-ins · " + money(t.pot) + "</span>" +
+          '<span class="night-meta">' + t.players + " players · " + t.buyIns + " buy-ins · " + money(t.pot) +
+            (Stats.duration(n) !== null ? " · " + esc(hm(Stats.duration(n))) : "") + "</span>" +
           (Math.abs(t.balance) > 0.005 ? '<span class="pill pill-warn">' + esc(signed(t.balance)) + " off</span>" : "") +
         "</button>";
       if (open) h += nightBody(n);
@@ -588,6 +656,10 @@
         '<td class="num ' + signClass(net) + '">' + signed(net) + "</td></tr>";
     });
     h += "</tbody></table></div>";
+    if (n.start) {
+      h += '<p class="sec-note" style="margin:10px 0 0">Started ' + esc(n.start) +
+        (n.end ? ", finished " + esc(n.end) + " · " + esc(hm(Stats.duration(n))) : ", no finish time") + "</p>";
+    }
     if ((n.pots || []).length) {
       h += '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">' +
         n.pots.map(function (p) {
@@ -707,6 +779,11 @@
       statRow("Nights finished up", r.winning + " of " + r.nights, Math.round(r.winRate * 100) + "%", "") +
       statRow("Longest hot streak", Stats.winStreak(D(), pid) + " night" + (Stats.winStreak(D(), pid) === 1 ? "" : "s"), "", "") +
       statRow("Longest attendance run", Stats.attendanceStreak(D(), pid) + " night" + (Stats.attendanceStreak(D(), pid) === 1 ? "" : "s"), "", "") +
+      (r.minutes
+        ? statRow("Time at the table", hm(r.minutes), r.timedNights + " night" + (r.timedNights === 1 ? "" : "s"), "") +
+          statRow("Per hour", fmtRate(r.perHour), "", signClass(r.perHour)) +
+          statRow("Longest night", hm(r.longest), prettyDate(r.longestNight), "")
+        : "") +
       statRow("Total put in", money(r.moneyIn), "", "") +
       statRow("Total taken out", money(r.moneyOut), "", "") +
       "</tbody></table></div></div>";
@@ -783,7 +860,7 @@
 
     h += '<div class="sec-head"><h2>Adding to this</h2></div><div class="panel"><div class="setbody">' +
       "<p>No total is stored anywhere. A night records only who played, how many buy-ins they took and what they cashed out; profit, attendance, buy-in counts and every record are recomputed from that each time the app opens. Correcting one cash-out corrects every figure that depends on it.</p>" +
-      "<p>That also means a new statistic is a function in <code>stats.js</code>, not a change to the data. Knockouts, who hosted, how long a night ran, a settle-up tracker — each slots onto the nights already recorded.</p>" +
+      "<p>That also means a new statistic is a function in <code>stats.js</code>, not a change to the data. Knockouts, who hosted, a settle-up tracker — each slots onto the nights already recorded.</p>" +
       "</div></div>";
 
     return h;
@@ -959,7 +1036,13 @@
         }
 
         case "close":
-          withNight(sid, function (n) { n.status = "closed"; n.closedAt = new Date().toISOString(); }, "Close night");
+          withNight(sid, function (n) {
+            // Closing at the table stamps the finish time; closing a night
+            // entered after the fact leaves it for you to fill in.
+            if (n.start && !n.end && elapsed(n) !== null) n.end = nowHM();
+            n.status = "closed";
+            n.closedAt = new Date().toISOString();
+          }, "Close night");
           Store.flush();
           render(); break;
 
@@ -983,7 +1066,7 @@
           var picks = Array.prototype.map.call(document.querySelectorAll(".seatpick:checked"), function (c) { return c.value; });
           if (!picks.length) { alert("Pick at least one player for tonight."); return; }
           if (buyIn === null || buyIn <= 0) { alert("Set a buy-in above zero."); return; }
-          startNight(date, buyIn, picks);
+          startNight(date, buyIn, picks, (document.getElementById("new-start") || {}).value || "");
           break;
         }
 
@@ -1038,6 +1121,11 @@
         withNight(live.id, function (n) {
           n.entries[pid] = Object.assign({}, n.entries[pid], { cashOut: numOrNull(el.value) });
         }, "Cash-out for " + Stats.nameOf(D(), pid));
+        render();
+      } else if ((act === "setstart" || act === "setend") && live) {
+        var field = act === "setstart" ? "start" : "end";
+        var hhmm = Stats.clock(el.value) === null ? "" : el.value;
+        withNight(live.id, function (n) { n[field] = hhmm; }, field === "start" ? "Set start time" : "Set finish time");
         render();
       } else if (act === "rename") {
         updatePlayer(pid, { name: el.value.trim() || Stats.nameOf(D(), pid) }, "Rename player");
@@ -1109,6 +1197,12 @@
     Store.on(function () { renderChrome(); renderNotices(); });
     render();
     Store.init().then(render);
+
+    setInterval(function () {
+      var el = view.querySelector("[data-elapsed]");
+      var live = Stats.openNight(D());
+      if (el && live && !live.end) el.textContent = hm(elapsed(live));
+    }, 30000);
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
