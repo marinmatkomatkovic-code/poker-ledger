@@ -34,6 +34,12 @@
       </div>
       <div class="headtools">
         <span class="savechip" id="savechip"></span>
+        <button class="iconbtn" id="btn-undo" data-act="undo" aria-label="Undo" title="Undo" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 14 4 9l5-5"></path>
+            <path d="M4 9h10a6 6 0 0 1 0 12h-3"></path>
+          </svg>
+        </button>
         <button class="iconbtn" id="btn-settings" aria-label="Settings" title="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="3"></circle>
@@ -57,6 +63,8 @@
 </nav>
 
 <div class="tooltip" id="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<input type="file" id="importfile" accept="application/json,.json" hidden>
 
 <script src="store.js"></script>
 <script src="stats.js"></script>

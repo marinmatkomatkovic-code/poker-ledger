@@ -33,7 +33,9 @@
     openNights: {},
     charts: [],
     bumped: null,
-    lastPot: null
+    lastPot: null,
+    versions: null,
+    historyLoading: false
   };
 
   var view, tabsEl, navRow, noticesEl, footnote, eyebrow, gametitle, saveChip, tooltip;
@@ -86,6 +88,25 @@
 
   function prettyDate(iso) { return Charts.fullDate(iso); }
 
+  /** "12 minutes ago", "yesterday", "3 Sept" — whichever is most useful. */
+  function relDate(iso) {
+    if (!iso) return "";
+    var then = new Date(iso);
+    if (isNaN(then)) return String(iso);
+    var mins = Math.round((Date.now() - then.getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + " min ago";
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + (hrs === 1 ? " hour ago" : " hours ago");
+    var days = Math.round(hrs / 24);
+    if (days === 1) return "yesterday";
+    if (days < 7) return days + " days ago";
+    try {
+      return then.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + ", " +
+        then.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    } catch (e) { return String(iso).slice(0, 10); }
+  }
+
   function weekday(iso) {
     var p = String(iso || "").split("-");
     if (p.length !== 3) return "";
@@ -112,6 +133,48 @@
     var v = Number(s);
     return isFinite(v) ? v : null;
   }
+
+  /* --------------------------------------------------------------- toast */
+
+  var toastTimer = null;
+
+  /* Undo beats a confirmation dialog: it costs nothing when you meant it,
+     and it actually rescues you when you didn't. */
+  function toast(message, actionLabel, onAction) {
+    var el = document.getElementById("toast");
+    if (!el) return;
+    clearTimeout(toastTimer);
+    el.innerHTML = '<span class="t-msg"></span>' +
+      (actionLabel ? '<button class="t-act" type="button"></button>' : "");
+    el.querySelector(".t-msg").textContent = message;
+    if (actionLabel) {
+      var btn = el.querySelector(".t-act");
+      btn.textContent = actionLabel;
+      btn.onclick = function () { hideToast(); onAction(); };
+    }
+    el.hidden = false;
+    el.classList.add("show");
+    toastTimer = setTimeout(hideToast, 9000);
+  }
+
+  function hideToast() {
+    var el = document.getElementById("toast");
+    if (!el) return;
+    clearTimeout(toastTimer);
+    el.classList.remove("show");
+    setTimeout(function () { if (!el.classList.contains("show")) el.hidden = true; }, 220);
+  }
+
+  function doUndo() {
+    var label = Store.undo();
+    if (!label) return;
+    render();
+    toast("Undone: " + label.charAt(0).toLowerCase() + label.slice(1), "Redo", function () {
+      Store.redo(); render();
+    });
+  }
+
+  function doRedo() { if (Store.redo()) render(); }
 
   /* ------------------------------------------------------------ identity */
 
@@ -167,15 +230,14 @@
 
   function deletePlayer(id) {
     if (!canEdit()) return;
-    var played = D().nights.some(function (n) { return (n.entries || {})[id]; });
-    if (played) {
-      alert(Stats.nameOf(D(), id) + " has results on record, so removing them would break past nights. Set them to Away instead.");
-      return;
-    }
-    if (!confirm("Remove " + Stats.nameOf(D(), id) + " from the roster?")) return;
+    var name = Stats.nameOf(D(), id);
     Store.commit(function (d) {
-      d.players = d.players.filter(function (p) { return p.id !== id; });
-    }, "Remove player");
+      var p = d.players.filter(function (x) { return x.id === id; })[0];
+      if (p) d.trash.push({ kind: "player", deletedAt: new Date().toISOString(), item: p });
+      d.players = d.players.filter(function (x) { return x.id !== id; });
+    }, "Remove " + name);
+    render();
+    toast(name + " moved to the bin", "Undo", doUndo);
   }
 
   function startNight(date, buyIn, ids) {
@@ -224,6 +286,14 @@
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
         ICONS[t.id] + "</svg><span>" + esc(t.label) + "</span></button>";
     }).join("");
+
+    var undoBtn = document.getElementById("btn-undo");
+    if (undoBtn) {
+      var show = canEdit() && Store.canUndo();
+      undoBtn.hidden = !show;
+      undoBtn.title = show ? "Undo: " + Store.undoLabel() : "Undo";
+      undoBtn.setAttribute("aria-label", undoBtn.title);
+    }
 
     var st = Store.state;
     var label = st.status === "saving" ? "Saving" :
@@ -772,7 +842,7 @@
 
     h += '<div class="sec-head"><h2>Storage</h2></div><div class="panel">' +
       '<div class="setbody"><p>' + (repo
-        ? "Saving to <code>" + esc(repo.owner + "/" + repo.repo) + "</code>, file <code>" + esc(repo.path) + "</code> on branch <code>" + esc(repo.branch) + "</code>. Every change is a commit, so GitHub keeps the full history and you can undo anything from there."
+        ? "Saving to <code>" + esc(repo.owner + "/" + repo.repo) + "</code>, file <code>" + esc(repo.path) + "</code> on branch <code>" + esc(repo.branch) + "</code>. Every change is a separate commit."
         : "No repository detected. If you are running this somewhere other than GitHub Pages, set it here.") + "</p>" +
       '<div class="formgrid" style="padding:0">' +
         '<div class="fld"><label class="field-label" for="rp-owner">Owner</label><input class="input" id="rp-owner" value="' + esc(repo ? repo.owner : "") + '"></div>' +
@@ -780,6 +850,82 @@
         '<div class="fld" style="flex:0 1 110px"><label class="field-label" for="rp-branch">Branch</label><input class="input" id="rp-branch" value="' + esc(repo ? repo.branch : "main") + '"></div>' +
         '<button class="btn" data-act="setrepo">Save</button>' +
       "</div></div></div>";
+
+    /* ---- recovery ---- */
+    var trash = D().trash || [];
+    h += '<div class="sec-head"><h2>Safety net</h2>' +
+      '<p class="sec-note">Nothing here is one-way</p></div>';
+
+    h += '<div class="panel"><div class="setbody">' +
+      "<p>Every change you make can be stepped back with the undo arrow in the header, or <b>Ctrl+Z</b> " +
+      "(<b>\u2318Z</b> on a Mac). Deleting a night or a player moves it to the bin below rather than destroying it. " +
+      "Beyond that, every save is a commit on GitHub, so any earlier state of the ledger can be pulled back.</p>" +
+      "</div>" +
+      '<div class="setrow"><div><div class="lbl">Download a backup</div>' +
+        '<div class="hint">The whole ledger as a single file. Worth doing before anything drastic.</div></div>' +
+        '<button class="btn btn-sm" data-act="exportbackup">Download</button></div>' +
+      '<div class="setrow"><div><div class="lbl">Restore from a backup file</div>' +
+        '<div class="hint">Replaces everything with the contents of the file. Undoable.</div></div>' +
+        '<button class="btn btn-sm" data-act="importbackup"' + (signedIn ? "" : " disabled") + ">Choose a file</button></div>" +
+      "</div>";
+
+    h += '<div class="sec-head"><h2>The bin</h2>' +
+      '<p class="sec-note">' + (trash.length ? trash.length + " item" + (trash.length === 1 ? "" : "s") : "Empty") + "</p></div>";
+    h += '<div class="panel">';
+    if (!trash.length) {
+      h += '<div class="empty"><p>Deleted nights and players wait here until you empty it. They stay in the ledger file, so they are there on every device.</p></div>';
+    } else {
+      trash.forEach(function (e, i) {
+        var label, meta;
+        if (e.kind === "night") {
+          var t = Stats.nightTotals(e.item);
+          label = prettyDate(e.item.date);
+          meta = t.players + " players · " + t.buyIns + " buy-ins · " + money(t.pot);
+        } else {
+          label = (e.item && e.item.name) || "Player";
+          meta = e.item && e.item.joined ? "Joined " + prettyDate(e.item.joined) : "Removed from the roster";
+        }
+        h += '<div class="binrow">' +
+          '<span class="pill">' + (e.kind === "night" ? "Night" : "Player") + "</span>" +
+          '<span class="bin-label">' + esc(label) + '<span class="bin-meta">' + esc(meta) + "</span></span>" +
+          '<span class="bin-when">' + esc(relDate(e.deletedAt)) + "</span>" +
+          (signedIn ? '<button class="btn btn-sm" data-act="restoretrash" data-i="' + i + '">Restore</button>' : "") +
+          "</div>";
+      });
+      if (signedIn) {
+        h += '<div class="rowfoot"><div class="sec-note">Emptying the bin drops these from the ledger. They would still be in an earlier version below.</div>' +
+          '<button class="btn btn-sm btn-danger" data-act="purgetrash">Empty the bin</button></div>';
+      }
+    }
+    h += "</div>";
+
+    /* ---- version history ---- */
+    h += '<div class="sec-head"><h2>Earlier versions</h2>' +
+      '<p class="sec-note">Every save is a commit</p></div><div class="panel">';
+    if (!Store.state.repo) {
+      h += '<div class="empty"><p>Version history needs a GitHub repository. Set one above.</p></div>';
+    } else if (ui.historyLoading) {
+      h += '<div class="empty"><p>Reading the history&hellip;</p></div>';
+    } else if (!ui.versions) {
+      h += '<div class="empty"><p>Pull the list of saves from GitHub. You can put the ledger back to any of them; ' +
+        'the current state stays in the history either way, so restoring is not destructive.</p>' +
+        '<button class="btn" data-act="loadhistory">Show the history</button></div>';
+    } else if (!ui.versions.length) {
+      h += '<div class="empty"><p>No saves recorded yet.</p></div>';
+    } else {
+      ui.versions.forEach(function (v, i) {
+        h += '<div class="verrow">' +
+          '<span class="ver-when">' + esc(relDate(v.date)) + "</span>" +
+          '<span class="ver-msg">' + esc(v.message.split("\n")[0]) + "</span>" +
+          (i === 0 ? '<span class="pill pill-accent">Current</span>' :
+            (signedIn ? '<button class="btn btn-sm" data-act="restoreversion" data-sha="' + esc(v.sha) +
+              '" data-when="' + esc(relDate(v.date)) + '">Restore</button>' : "")) +
+          "</div>";
+      });
+      h += '<div class="rowfoot"><div class="sec-note">Restoring writes a new save, so nothing in the history is lost.</div>' +
+        '<button class="btn btn-sm" data-act="loadhistory">Refresh</button></div>';
+    }
+    h += "</div>";
 
     h += '<div class="sec-head"><h2>Adding to this</h2></div><div class="panel"><div class="setbody">' +
       "<p>No total is stored anywhere. A night records only who played, how many buy-ins they took and what they cashed out; profit, attendance, buy-in counts and every record are recomputed from that each time the app opens. Correcting one cash-out corrects every figure that depends on it.</p>" +
@@ -792,6 +938,40 @@
   function setRow(label, hint, control) {
     return '<div class="setrow"><div><div class="lbl">' + esc(label) + "</div>" +
       '<div class="hint">' + esc(hint) + "</div></div>" + control + "</div>";
+  }
+
+  /* --------------------------------------------------------------- backup */
+
+  function exportBackup() {
+    var blob = new Blob([JSON.stringify(D(), null, 2)], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "poker-ledger-" + todayISO() + ".json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast("Backup downloaded");
+  }
+
+  function importBackup(file) {
+    if (!file || !canEdit()) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed;
+      try { parsed = JSON.parse(String(reader.result)); }
+      catch (e) { toast("That file isn't valid JSON."); return; }
+      if (!Store.looksValid(parsed)) { toast("That doesn't look like a ledger file."); return; }
+      var d = Store.migrate(parsed);
+      Store.commit(function (cur) {
+        cur.config = d.config; cur.players = d.players; cur.nights = d.nights; cur.trash = d.trash || [];
+      }, "Restore from a backup file");
+      render();
+      toast("Loaded " + d.nights.length + " night" + (d.nights.length === 1 ? "" : "s") +
+        " and " + d.players.length + " player" + (d.players.length === 1 ? "" : "s"), "Undo", doUndo);
+    };
+    reader.readAsText(file);
   }
 
   /* ---------------------------------------------------------------- render */
@@ -967,12 +1147,76 @@
           withNight(sid, function (n) { n.status = "open"; n.closedAt = ""; }, "Reopen night");
           ui.tab = "tonight"; render(); break;
 
-        case "delnight":
-          if (!confirm("Delete this night and everything recorded on it? This cannot be undone.")) return;
-          if (canEdit()) Store.commit(function (d) {
-            d.nights = d.nights.filter(function (n) { return n.id !== sid; });
-          }, "Delete night");
+        case "delnight": {
+          if (!canEdit()) return;
+          var gone = D().nights.filter(function (n) { return n.id === sid; })[0];
+          var when = gone ? prettyDate(gone.date) : "That night";
+          Store.commit(function (d) {
+            var n = d.nights.filter(function (x) { return x.id === sid; })[0];
+            if (n) d.trash.push({ kind: "night", deletedAt: new Date().toISOString(), item: n });
+            d.nights = d.nights.filter(function (x) { return x.id !== sid; });
+          }, "Delete night " + (gone ? gone.date : sid));
+          render();
+          toast(when + " moved to the bin", "Undo", doUndo);
+          break;
+        }
+
+        case "restoretrash": {
+          var ti = Number(el.getAttribute("data-i"));
+          var entry = (D().trash || [])[ti];
+          if (!entry || !canEdit()) return;
+          Store.commit(function (d) {
+            var e = d.trash[ti];
+            if (!e) return;
+            if (e.kind === "night") d.nights.push(e.item);
+            else d.players.push(e.item);
+            d.trash.splice(ti, 1);
+          }, "Restore from the bin");
+          render();
+          toast("Restored", "Undo", doUndo);
+          break;
+        }
+
+        case "purgetrash": {
+          if (!canEdit()) return;
+          if (!confirm("Empty the bin? Undo won't bring these back \u2014 you would have to restore an earlier version.")) return;
+          Store.commit(function (d) { d.trash = []; }, "Empty the bin");
           render(); break;
+        }
+
+        case "undo": doUndo(); break;
+        case "redo": doRedo(); break;
+
+        case "exportbackup": exportBackup(); break;
+        case "importbackup": {
+          var inp = document.getElementById("importfile");
+          if (inp) inp.click();
+          break;
+        }
+
+        case "loadhistory": {
+          ui.historyLoading = true; render();
+          Store.history(25).then(function (list) {
+            ui.versions = list; ui.historyLoading = false; render();
+          }).catch(function () {
+            ui.historyLoading = false; ui.versions = null; render();
+            toast("Couldn't load the version list from GitHub.");
+          });
+          break;
+        }
+
+        case "restoreversion": {
+          var sha = el.getAttribute("data-sha");
+          var when = el.getAttribute("data-when");
+          if (!canEdit()) return;
+          Store.restoreVersion(sha, when).then(function () {
+            render();
+            toast("Restored the version from " + when, "Undo", doUndo);
+          }).catch(function () {
+            toast("Couldn't fetch that version.");
+          });
+          break;
+        }
 
         case "togglenight":
           ui.openNights[sid] = !ui.openNights[sid]; render(); break;
@@ -1087,6 +1331,22 @@
       if (y < 8) y = ev.clientY + pad + 8;
       tooltip.style.left = Math.max(8, x) + "px";
       tooltip.style.top = y + "px";
+    }
+
+    document.addEventListener("keydown", function (ev) {
+      if (!(ev.metaKey || ev.ctrlKey) || ev.key.toLowerCase() !== "z") return;
+      var t = ev.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      ev.preventDefault();
+      if (ev.shiftKey) doRedo(); else doUndo();
+    });
+
+    var fileInput = document.getElementById("importfile");
+    if (fileInput) {
+      fileInput.addEventListener("change", function () {
+        if (this.files && this.files[0]) importBackup(this.files[0]);
+        this.value = "";
+      });
     }
 
     window.addEventListener("beforeunload", function () { if (Store.state.dirty) Store.flush(); });
