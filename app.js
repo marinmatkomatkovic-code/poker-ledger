@@ -31,7 +31,9 @@
     player: null,
     sort: { key: "pnl", dir: "desc" },
     openNights: {},
-    charts: []
+    charts: [],
+    bumped: null,
+    lastPot: null
   };
 
   var view, tabsEl, navRow, noticesEl, footnote, eyebrow, gametitle, saveChip, tooltip;
@@ -109,6 +111,40 @@
     if (s === "") return null;
     var v = Number(s);
     return isFinite(v) ? v : null;
+  }
+
+  /* ------------------------------------------------------------ identity */
+
+  /* A player's colour is reinforcement, never the encoding: every badge
+     carries their initials and sits beside their name. That is why eight
+     hues are safe here when only four would be defensible as data colour. */
+
+  var PALETTE_SIZE = 8;
+
+  function initials(name) {
+    var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function colourIndex(pid) {
+    var players = D().players;
+    for (var i = 0; i < players.length; i++) {
+      if (players[i].id !== pid) continue;
+      if (typeof players[i].colour === "number") return players[i].colour % PALETTE_SIZE;
+      return i % PALETTE_SIZE;
+    }
+    // Someone who played but is no longer on the roster: stable hash instead.
+    var h = 0;
+    for (var k = 0; k < pid.length; k++) h = (h * 31 + pid.charCodeAt(k)) | 0;
+    return Math.abs(h) % PALETTE_SIZE;
+  }
+
+  function avatar(pid, size) {
+    var p = Stats.playerById(D(), pid);
+    var cls = "av" + (size ? " " + size : "") + " pc" + colourIndex(pid) + (p && p.active === false ? " away" : "");
+    return '<span class="' + cls + '" aria-hidden="true">' + esc(initials(Stats.nameOf(D(), pid))) + "</span>";
   }
 
   /* ---------------------------------------------------------------- mutate */
@@ -230,7 +266,7 @@
 
     var h = '<div class="panel" style="margin-top:20px">';
     h += '<div class="tiles">' +
-      tile("In the pot", money(t.moneyIn), t.buyIns + " buy-in" + (t.buyIns === 1 ? "" : "s") + " × " + money(live.buyIn)) +
+      tile("In the pot", money(t.moneyIn), t.buyIns + " buy-in" + (t.buyIns === 1 ? "" : "s") + " × " + money(live.buyIn), "", "hero") +
       tile("Cashed out", money(t.moneyOut), t.counted + " of " + t.players + " counted") +
       (t.complete
         ? tile("Balance", t.balance === 0 ? money(0) : signed(t.balance),
@@ -246,14 +282,15 @@
       var has = Stats.hasCashOut(row);
       var n = has ? (Number(row.cashOut) || 0) - b * live.buyIn : null;
       h += '<div class="prow">' +
-        '<div class="a-name"><div class="prow-name">' + esc(Stats.nameOf(D(), pid)) + "</div>" +
-          '<div class="prow-in">' + money(b * live.buyIn) + " in</div></div>";
+        '<div class="a-name">' + avatar(pid) + '<div style="min-width:0">' +
+          '<div class="prow-name">' + esc(Stats.nameOf(D(), pid)) + "</div>" +
+          '<div class="prow-in">' + money(b * live.buyIn) + " in</div></div></div>";
 
       if (editable) {
         h += '<div class="a-step"><span class="field-label">Buy-ins</span><div class="stepper">' +
           '<button type="button" data-act="buyins" data-pid="' + esc(pid) + '" data-n="' + (b - 1) + '"' + (b <= 0 ? " disabled" : "") +
             ' aria-label="One fewer buy-in for ' + esc(Stats.nameOf(D(), pid)) + '">&minus;</button>' +
-          '<span class="val">' + b + "</span>" +
+          '<span class="val' + (ui.bumped === pid ? " bump" : "") + '">' + b + "</span>" +
           '<button type="button" data-act="buyins" data-pid="' + esc(pid) + '" data-n="' + (b + 1) + '"' +
             ' aria-label="Another buy-in for ' + esc(Stats.nameOf(D(), pid)) + '">+</button>' +
           "</div></div>" +
@@ -277,7 +314,8 @@
       if (absent.length) {
         h += '<div class="addrow"><span class="field-label" style="margin:0 4px 0 0">Seat someone</span>' +
           absent.map(function (p) {
-            return '<button class="chip" data-act="seat" data-pid="' + esc(p.id) + '">+ ' + esc(p.name) + "</button>";
+            return '<button class="chip" data-act="seat" data-pid="' + esc(p.id) + '">' +
+              avatar(p.id, "av-sm") + esc(p.name) + "</button>";
           }).join("") + "</div>";
       }
 
@@ -315,8 +353,8 @@
     return h;
   }
 
-  function tile(label, value, sub, cls) {
-    return '<div class="tile"><span class="tile-label">' + esc(label) + "</span>" +
+  function tile(label, value, sub, cls, tileCls) {
+    return '<div class="tile' + (tileCls ? " " + tileCls : "") + '"><span class="tile-label">' + esc(label) + "</span>" +
       '<span class="tile-value ' + (cls || "") + '">' + esc(value) + "</span>" +
       '<span class="tile-sub">' + esc(sub || "") + "</span></div>";
   }
@@ -355,7 +393,8 @@
       "</div>" +
       '<div class="addrow" style="border-top:0"><span class="field-label" style="margin:0 4px 0 0">At the table</span>' +
         actives.map(function (p) {
-          return '<label class="chip"><input type="checkbox" class="seatpick" value="' + esc(p.id) + '" checked>' + esc(p.name) + "</label>";
+          return '<label class="chip"><input type="checkbox" class="seatpick" value="' + esc(p.id) + '" checked>' +
+            avatar(p.id, "av-sm") + esc(p.name) + "</label>";
         }).join("") + "</div>" +
       '<div class="rowfoot"><div class="sec-note">Everyone starts on one buy-in.</div>' +
         '<button class="btn btn-primary" data-act="startnight">Start the night</button></div>' +
@@ -401,7 +440,8 @@
       var rp = r.pnl > 0 ? (r.pnl / maxAbs) * 100 : 0;
       h += '<tr class="clickable" data-act="openplayer" data-pid="' + esc(r.id) + '">' +
         '<td class="rank">' + (i + 1) + "</td>" +
-        '<td class="name">' + esc(r.name) + (r.active === false ? ' <span class="pill">Away</span>' : "") + "</td>" +
+        '<td class="name"><span class="namecell">' + avatar(r.id, "av-sm") + "<span>" + esc(r.name) +
+          (r.active === false ? ' <span class="pill">Away</span>' : "") + "</span></span></td>" +
         '<td class="num">' + r.nights + "</td>" +
         '<td class="num">' + r.buyIns + "</td>" +
         '<td class="num">' + money(r.moneyIn) + "</td>" +
@@ -452,6 +492,7 @@
         h += '<div class="recrow' + (i === 0 ? " lead" : "") + '"' +
           (r.whoId ? ' data-act="openplayer" data-pid="' + esc(r.whoId) + '" style="cursor:pointer"' : "") + ">" +
           '<span class="pos-n">' + (i + 1) + "</span>" +
+          (r.whoId ? avatar(r.whoId, "av-sm") : "") +
           '<span class="who">' + esc(r.who) + "</span>" +
           (r.when ? '<span class="when">' + esc(/^\d{4}-\d{2}-\d{2}$/.test(r.when) ? Charts.shortDate(r.when) : r.when) + "</span>" : "") +
           '<span class="val ' + (r.format === "money" ? signClass(r.value) : "") + '">' + esc(fmtRecord(r.value, r.format)) + "</span>" +
@@ -486,7 +527,7 @@
         att.nights.map(function (n) { return '<th class="colhead">' + esc(Charts.shortDate(n.date)) + "</th>"; }).join("") +
         "</tr></thead><tbody>";
       att.players.forEach(function (p) {
-        h += '<tr><th class="rowhead">' + esc(p.name) + "</th>";
+        h += '<tr><th class="rowhead"><span class="namecell">' + avatar(p.id, "av-sm") + "<span>" + esc(p.name) + "</span></span></th>";
         att.nights.forEach(function (n) {
           var present = !!(n.entries || {})[p.id];
           if (!present) {
@@ -540,7 +581,7 @@
       var b = Number(row.buyIns) || 0;
       var net = Stats.net(n, pid);
       h += '<tr class="clickable" data-act="openplayer" data-pid="' + esc(pid) + '">' +
-        '<td class="name">' + esc(Stats.nameOf(D(), pid)) + "</td>" +
+        '<td class="name"><span class="namecell">' + avatar(pid, "av-sm") + "<span>" + esc(Stats.nameOf(D(), pid)) + "</span></span></td>" +
         '<td class="num">' + b + "</td>" +
         '<td class="num">' + money(b * n.buyIn) + "</td>" +
         '<td class="num">' + money(Number(row.cashOut) || 0) + "</td>" +
@@ -590,7 +631,7 @@
       roster.forEach(function (p) {
         var r = st[p.id] || { nights: 0, pnl: 0, buyIns: 0 };
         h += '<button class="sparkcard" data-act="openplayer" data-pid="' + esc(p.id) + '">' +
-          '<div class="sc-top"><span class="sc-name">' + esc(p.name) + "</span>" +
+          '<div class="sc-top">' + avatar(p.id, "av-sm") + '<span class="sc-name">' + esc(p.name) + "</span>" +
           '<span class="sc-pnl ' + signClass(r.pnl) + '">' + (r.nights ? signed(r.pnl) : "—") + "</span></div>" +
           '<div class="sc-meta">' + r.nights + " night" + (r.nights === 1 ? "" : "s") + " · " + r.buyIns + " buy-ins" +
             (p.active === false ? " · away" : "") + "</div>" +
@@ -605,8 +646,9 @@
         '<th class="name">Name</th><th>Status</th><th></th></tr></thead><tbody>';
       D().players.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).forEach(function (p) {
         h += "<tr>" +
-          '<td class="name"><input class="input" id="pn-' + esc(p.id) + '" data-act="rename" data-pid="' + esc(p.id) +
-            '" value="' + esc(p.name) + '" style="border-color:transparent;background:transparent;padding:4px 6px;font-weight:500"></td>' +
+          '<td class="name"><span class="namecell">' + avatar(p.id, "av-sm") +
+            '<input class="input" id="pn-' + esc(p.id) + '" data-act="rename" data-pid="' + esc(p.id) +
+            '" value="' + esc(p.name) + '" style="border-color:transparent;background:transparent;padding:4px 6px;font-weight:600"></span></td>' +
           "<td>" + (p.active !== false ? '<span class="pill pill-accent">Regular</span>' : '<span class="pill">Away</span>') + "</td>" +
           '<td style="text-align:right;white-space:nowrap">' +
             '<button class="btn btn-sm" data-act="toggleactive" data-pid="' + esc(p.id) + '">' +
@@ -629,8 +671,10 @@
     var series = Stats.cumulative(D(), pid);
 
     var h = '<button class="backlink" data-act="closeplayer">← All players</button>';
-    h += '<div class="playerhead"><h2>' + esc(name) + "</h2>" +
-      (r && r.active === false ? '<span class="pill">Away</span>' : "") + "</div>";
+    h += '<div class="playerhead">' + avatar(pid, "av-xl") +
+      '<div class="who"><h2>' + esc(name) + "</h2>" +
+      '<div class="meta">' + (r && r.nights ? r.nights + " night" + (r.nights === 1 ? "" : "s") + " played" : "No nights yet") +
+      (r && r.active === false ? " · away" : "") + "</div></div></div>";
 
     if (!r || !r.nights) {
       return h + '<div class="panel"><div class="empty"><h3>No nights yet</h3><p>' + esc(name) +
@@ -638,7 +682,7 @@
     }
 
     h += '<div class="panel"><div class="tiles">' +
-      tile("All-time", signed(r.pnl), r.nights + " night" + (r.nights === 1 ? "" : "s") + " played", signClass(r.pnl)) +
+      tile("All-time", signed(r.pnl), r.nights + " night" + (r.nights === 1 ? "" : "s") + " played", signClass(r.pnl), "hero") +
       tile("Per night", signed(r.perNight), "Average result", signClass(r.perNight)) +
       tile("Buy-ins", String(r.buyIns), r.avgBuyIns.toFixed(1) + " a night") +
       "</div></div>";
@@ -791,7 +835,32 @@
       ? (live ? "Tonight is still open, so it isn't in the standings yet." : "")
       : "This is a read-only view. Only the scorekeeper can change the ledger.";
 
+    animatePot();
+    ui.bumped = null;
+
     restoreFocus(f);
+  }
+
+  /* The pot is the number people watch, so let it move when it changes
+     rather than teleporting. Everything else stays still. */
+  function animatePot() {
+    var el = view.querySelector(".tile.hero .tile-value");
+    var live = Stats.openNight(D());
+    if (!el || !live) { ui.lastPot = null; return; }
+    var to = Stats.nightTotals(live).moneyIn;
+    var from = ui.lastPot;
+    ui.lastPot = to;
+    if (from === null || from === to) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    var start = performance.now(), dur = 420;
+    (function step(now) {
+      var k = Math.min(1, (now - start) / dur);
+      var eased = 1 - Math.pow(1 - k, 3);
+      el.textContent = money(from + (to - from) * eased);
+      if (k < 1) requestAnimationFrame(step);
+      else el.textContent = money(to);
+    })(start);
   }
 
   function mountCharts() {
@@ -857,6 +926,7 @@
           ui.player = null; render(); break;
 
         case "buyins":
+          ui.bumped = pid;
           if (live) withNight(live.id, function (n) {
             n.entries[pid] = Object.assign({}, n.entries[pid], { buyIns: Math.max(0, Number(el.getAttribute("data-n")) || 0) });
           }, "Buy-in for " + Stats.nameOf(D(), pid));

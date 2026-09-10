@@ -189,15 +189,26 @@ and call `add()`. Adding a field to a night (who hosted, how long it ran, knocko
 means writing it into `entries` or the night object and deriving from it; nights
 recorded before the field existed simply don't have it, so treat missing as zero.
 
-### A note on colour
+### Two colour systems, kept apart
 
-Profit and loss are **teal and orange-red**, not green and red. Green/red is the
-conventional choice and the wrong one: the two are nearly indistinguishable to
-red-green colourblind readers, which is around one man in twelve. The pair in use
-here was checked for colourblind separation against both the light and dark
-backgrounds. Sign is also carried by a `+`/`−` prefix and by which side of zero a
-bar sits on, so the colour is never doing the work alone. If you restyle it, keep
-that property.
+**Result colour** — profit and loss — is **teal and orange-red**, not green and red.
+Green/red is the conventional choice and the wrong one: the two are nearly
+indistinguishable to red-green colourblind readers, around one man in twelve. The
+pair here was measured against both the light and dark backgrounds. Sign is also
+carried by a `+`/`−` prefix and by which side of zero a bar sits on, so colour never
+works alone.
+
+**Identity colour** — one hue per player — is a separate system. It only ever appears
+as a badge with that player's initials in it, beside their name. Identity is carried
+by the letters; colour just makes a roster scannable. That is why eight hues are fine
+here when only four would survive as data colour. Two rules keep the systems from
+colliding, and both matter if you extend the app:
+
+- an avatar is never a bare colour dot, and never appears inside a chart's plotting area;
+- a money figure is always monospaced and signed, and never sits on a coloured badge.
+
+Colours are assigned by a player's position in the roster. To pin one, add
+`"colour": 3` to that player in `data.json` (0–7, matching `--pc0`…`--pc7` in the CSS).
 
 ---
 
