@@ -66,35 +66,6 @@
       "notes": "",
       "createdAt": "2026-09-09T23:09:53.383Z",
       "closedAt": "2026-09-09T23:11:10.698Z"
-    },
-    {
-      "id": "2026-09-11",
-      "date": "2026-09-11",
-      "buyIn": 20,
-      "status": "open",
-      "start": "00:51",
-      "end": "",
-      "entries": {
-        "kuomic": {
-          "buyIns": 1,
-          "cashOut": null
-        },
-        "lamumu": {
-          "buyIns": 1,
-          "cashOut": null
-        },
-        "amdrija": {
-          "buyIns": 3,
-          "cashOut": null
-        },
-        "k-b": {
-          "buyIns": 1,
-          "cashOut": null
-        }
-      },
-      "pots": [],
-      "notes": "",
-      "createdAt": "2026-09-10T22:51:42.008Z"
     }
   ]
 }
