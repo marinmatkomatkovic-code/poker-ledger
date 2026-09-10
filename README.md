@@ -127,6 +127,46 @@ signal the app keeps working and pushes everything when you're back.
 
 ---
 
+## If you get something wrong
+
+Nothing in the app is one-way. There are four layers, shallowest first — reach for
+the first one that fits.
+
+**1. Undo.** Every change is undoable, not just deletions: a mistyped cash-out, a
+rename, a rebuy tapped twice, a whole night discarded. The undo arrow appears in the
+header the moment there is something to undo, and `Ctrl+Z` (`⌘Z` on a Mac) works too.
+After a deletion a toast offers *Undo* directly. Undoing is itself undoable — the
+toast then offers *Redo*.
+
+The stack holds the last 40 changes and lives in memory, so it resets when you close
+the app. That is deliberate: it is the "oops" layer, not the archive.
+
+**2. The bin.** Deleting a night or a player moves it aside inside the ledger rather
+than destroying it. It sits in *Settings → The bin* until you restore it or empty the
+bin, and because it lives in `data.json` it is there on every device, not just the one
+you deleted from. A player in the bin still shows their real name on old nights, so
+removing someone from the roster never turns past results into a row of raw ids.
+
+**3. Earlier versions.** Every save is a git commit, so the ledger has a complete
+history. *Settings → Earlier versions* lists recent saves with what each one did
+("Close night 2026-09-01", "Buy-in for Nikola") and puts the ledger back to any of
+them. Restoring writes a *new* commit, so the state you restored from is still in the
+history — you can always go forward again. This is the layer that covers everything
+the other two don't: a bad edit three weeks ago, a corrupted file, an emptied bin.
+
+**4. A backup file.** *Settings → Download a backup* gives you the whole ledger as a
+single JSON file. Keep one somewhere before doing anything drastic. *Restore from a
+backup file* loads one back, and that too is undoable.
+
+Emptying the bin is the only action undo will not reverse — and even then the items
+are still sitting in an earlier version.
+
+You can also do all of this from GitHub directly: the repo's commit history for
+`data.json` shows every change, and reverting a commit there works exactly as you'd
+expect.
+
+---
+
 ## Who can see this
 
 The repository is public, so `data.json` is on the internet. Anyone who has the link
@@ -168,7 +208,8 @@ seconds.
     },
     "pots": [ { "amount": 120, "winner": "ivan", "note": "flopped a boat" } ],
     "notes": ""
-  } ]
+  } ],
+  "trash":   [ { "kind": "night", "deletedAt": "2026-09-09T21:12:00Z", "item": { } } ]
 }
 ```
 
@@ -190,7 +231,7 @@ something gets mangled you can see exactly when and revert it from the repo.
 | `app.js` | Screens and interactions. |
 | `charts.js` | The SVG charts. No chart library. |
 | `styles.css` | Design tokens at the top: colours, type, spacing. Change them in one place. |
-| `store.js` | Talking to GitHub, the local cache, offline retries. |
+| `store.js` | Talking to GitHub, the local cache, offline retries, undo/redo and version history. |
 | `sw.js` | Offline caching. **Bump `CACHE` whenever you change a file**, or browsers keep the old one. |
 
 Adding a record is a few lines in `records()` in `stats.js` — build a list of rows

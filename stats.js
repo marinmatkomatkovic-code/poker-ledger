@@ -38,9 +38,15 @@ PL.Stats = (function () {
     return data.players.filter(function (p) { return p.id === id; })[0] || null;
   }
 
+  /** A player removed from the roster still has results on old nights, so
+   *  look in the bin too before falling back to the raw id. */
   function nameOf(data, id) {
     var p = playerById(data, id);
-    return p ? p.name : id;
+    if (p) return p.name;
+    var t = (data.trash || []).filter(function (e) {
+      return e.kind === "player" && e.item && e.item.id === id;
+    })[0];
+    return t ? t.item.name : id;
   }
 
   /** One player's result on one night. */
