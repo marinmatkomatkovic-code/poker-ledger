@@ -8,26 +8,8 @@
   },
   "players": [
     {
-      "id": "kuomic",
-      "name": "Kuomić",
-      "active": true,
-      "joined": "2026-09-10"
-    },
-    {
-      "id": "lamumu",
-      "name": "Lamumu",
-      "active": true,
-      "joined": "2026-09-10"
-    },
-    {
       "id": "amdrija",
       "name": "Amdrija",
-      "active": true,
-      "joined": "2026-09-10"
-    },
-    {
-      "id": "k-b",
-      "name": "k.b",
       "active": true,
       "joined": "2026-09-10"
     }
@@ -66,6 +48,38 @@
       "notes": "",
       "createdAt": "2026-09-09T23:09:53.383Z",
       "closedAt": "2026-09-09T23:11:10.698Z"
+    }
+  ],
+  "trash": [
+    {
+      "kind": "player",
+      "deletedAt": "2026-09-12T17:13:56.541Z",
+      "item": {
+        "id": "k-b",
+        "name": "k.b",
+        "active": true,
+        "joined": "2026-09-10"
+      }
+    },
+    {
+      "kind": "player",
+      "deletedAt": "2026-09-12T17:13:57.440Z",
+      "item": {
+        "id": "kuomic",
+        "name": "Kuomić",
+        "active": true,
+        "joined": "2026-09-10"
+      }
+    },
+    {
+      "kind": "player",
+      "deletedAt": "2026-09-12T17:13:58.287Z",
+      "item": {
+        "id": "lamumu",
+        "name": "Lamumu",
+        "active": true,
+        "joined": "2026-09-10"
+      }
     }
   ]
 }
