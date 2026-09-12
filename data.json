@@ -18,6 +18,18 @@
       "name": "Mula",
       "active": true,
       "joined": "2026-09-12"
+    },
+    {
+      "id": "komic",
+      "name": "Komic",
+      "active": true,
+      "joined": "2026-09-12"
+    },
+    {
+      "id": "k-b",
+      "name": "K.B.",
+      "active": true,
+      "joined": "2026-09-12"
     }
   ],
   "nights": [
