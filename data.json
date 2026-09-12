@@ -30,6 +30,12 @@
       "name": "K.B.",
       "active": true,
       "joined": "2026-09-12"
+    },
+    {
+      "id": "rimski",
+      "name": "RIMSKI",
+      "active": true,
+      "joined": "2026-09-12"
     }
   ],
   "nights": [
