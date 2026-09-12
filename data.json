@@ -8,10 +8,10 @@
   },
   "players": [
     {
-      "id": "amdrija",
-      "name": "Amdrija",
+      "id": "andrija",
+      "name": "ANDRIJA",
       "active": true,
-      "joined": "2026-09-10"
+      "joined": "2026-09-12"
     }
   ],
   "nights": [
@@ -77,6 +77,16 @@
       "item": {
         "id": "lamumu",
         "name": "Lamumu",
+        "active": true,
+        "joined": "2026-09-10"
+      }
+    },
+    {
+      "kind": "player",
+      "deletedAt": "2026-09-12T17:14:04.336Z",
+      "item": {
+        "id": "amdrija",
+        "name": "Amdrija",
         "active": true,
         "joined": "2026-09-10"
       }
