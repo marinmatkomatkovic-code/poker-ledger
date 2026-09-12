@@ -12,6 +12,12 @@
       "name": "ANDRIJA",
       "active": true,
       "joined": "2026-09-12"
+    },
+    {
+      "id": "mula",
+      "name": "Mula",
+      "active": true,
+      "joined": "2026-09-12"
     }
   ],
   "nights": [
