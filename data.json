@@ -40,40 +40,6 @@
   ],
   "nights": [
     {
-      "id": "2026-09-10",
-      "date": "2026-09-10",
-      "buyIn": 20,
-      "status": "closed",
-      "entries": {
-        "kuomic": {
-          "buyIns": 3,
-          "cashOut": 0
-        },
-        "lamumu": {
-          "buyIns": 9,
-          "cashOut": 0
-        },
-        "amdrija": {
-          "buyIns": 4,
-          "cashOut": 300
-        },
-        "k-b": {
-          "buyIns": 3,
-          "cashOut": 80
-        }
-      },
-      "pots": [
-        {
-          "amount": 78,
-          "winner": "",
-          "note": "Amdrija"
-        }
-      ],
-      "notes": "",
-      "createdAt": "2026-09-09T23:09:53.383Z",
-      "closedAt": "2026-09-09T23:11:10.698Z"
-    },
-    {
       "id": "2026-09-12",
       "date": "2026-09-12",
       "buyIn": 20,
@@ -147,6 +113,44 @@
         "name": "Amdrija",
         "active": true,
         "joined": "2026-09-10"
+      }
+    },
+    {
+      "kind": "night",
+      "deletedAt": "2026-09-13T02:11:15.834Z",
+      "item": {
+        "id": "2026-09-10",
+        "date": "2026-09-10",
+        "buyIn": 20,
+        "status": "closed",
+        "entries": {
+          "kuomic": {
+            "buyIns": 3,
+            "cashOut": 0
+          },
+          "lamumu": {
+            "buyIns": 9,
+            "cashOut": 0
+          },
+          "amdrija": {
+            "buyIns": 4,
+            "cashOut": 300
+          },
+          "k-b": {
+            "buyIns": 3,
+            "cashOut": 80
+          }
+        },
+        "pots": [
+          {
+            "amount": 78,
+            "winner": "",
+            "note": "Amdrija"
+          }
+        ],
+        "notes": "",
+        "createdAt": "2026-09-09T23:09:53.383Z",
+        "closedAt": "2026-09-09T23:11:10.698Z"
       }
     }
   ]
