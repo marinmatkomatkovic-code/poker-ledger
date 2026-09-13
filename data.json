@@ -99,7 +99,7 @@
         },
         "rimski": {
           "buyIns": 3,
-          "cashOut": null
+          "cashOut": 120
         }
       },
       "pots": [],
