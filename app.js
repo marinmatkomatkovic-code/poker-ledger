@@ -35,7 +35,8 @@
     bumped: null,
     lastPot: null,
     versions: null,
-    historyLoading: false
+    historyLoading: false,
+    showSignIn: false
   };
 
   var view, tabsEl, navRow, noticesEl, footnote, eyebrow, gametitle, saveChip, tooltip;
@@ -51,6 +52,11 @@
   function D() { return Store.state.data; }
   function cfg() { return D().config; }
   function canEdit() { return Store.canEdit(); }
+
+  /* Whoever holds a token is the scorekeeper, even before the repo is
+     configured — otherwise a custom host would lock them out of the very
+     panel they need to fix it. Writing still requires both. */
+  function isScorekeeper() { return !!Store.getToken(); }
 
   function money(v, short) {
     var n = Number(v) || 0;
@@ -496,9 +502,8 @@
         // First run: nobody has set this up yet, so point the owner at the door.
         return '<div class="panel" style="margin-top:20px"><div class="empty">' +
           "<h3>Nothing here yet</h3>" +
-          "<p>This ledger is empty. If it's yours, unlock editing with your GitHub token and add the players — " +
-          "everyone else just gets to watch.</p>" +
-          '<button class="btn btn-primary" data-tab="settings">Set up the ledger</button>' +
+          "<p>No nights have been played. Once the scorekeeper starts one, it shows up here.</p>" +
+          '<button class="btn" data-tab="settings">I\'m the scorekeeper</button>' +
           "</div></div>";
       }
       return '<div class="panel" style="margin-top:20px"><div class="empty"><h3>No night in progress</h3>' +
@@ -879,31 +884,47 @@
 
   /* --------------------------------------------------------------- settings */
 
+  /** What someone who is not the scorekeeper sees: one card, nothing to
+   *  fiddle with, and a way in if it turns out they are the scorekeeper. */
+  function viewSignIn() {
+    var name = cfg().gameName || "this ledger";
+    return '<div class="panel signin" style="margin-top:22px"><div class="empty">' +
+      '<svg class="mark" viewBox="0 0 512 512" aria-hidden="true">' +
+        '<g transform="rotate(-17 256 288)"><rect x="120" y="118" width="196" height="278" rx="30" fill="var(--felt)"/></g>' +
+        '<g transform="rotate(10 256 288)"><rect x="198" y="108" width="196" height="278" rx="30" fill="var(--surface-3)"/>' +
+        '<path d="M296 168 C296 168 232 226 232 268 C232 294 251 309 271 309 C282 309 289 303 296 295 C303 303 310 309 321 309 C341 309 360 294 360 268 C360 226 296 168 296 168 Z" fill="var(--ink-2)"/>' +
+        '<path d="M279 348 h34 l-12 -46 h-10 Z" fill="var(--ink-2)"/></g>' +
+      "</svg>" +
+      "<h3>You're watching " + esc(name) + "</h3>" +
+      "<p>Everything in the app is up to date and yours to read. Entering results is the scorekeeper's job, so there is nothing to set up here.</p>" +
+      "</div>" +
+      '<div class="signin-box">' +
+        '<button class="btn btn-quiet btn-sm" data-act="revealsignin"' + (ui.showSignIn ? " hidden" : "") + ">I'm the scorekeeper</button>" +
+        (ui.showSignIn
+          ? '<div class="formgrid" style="padding:0;width:100%">' +
+              '<div class="fld" style="flex:1 1 220px"><label class="field-label" for="tok">GitHub token</label>' +
+                '<input class="input" id="tok" type="password" placeholder="github_pat_…" autocomplete="off" autofocus></div>' +
+              '<button class="btn btn-primary" data-act="signin">Unlock editing</button></div>' +
+            '<p class="signin-hint">Stored on this device only, and sent nowhere except GitHub. ' +
+              "If you need one: a fine-grained personal access token scoped to this repository, with <b>Contents: Read and write</b>.</p>"
+          : "") +
+      "</div></div>";
+  }
+
   function viewSettings() {
     var repo = Store.state.repo;
     var signedIn = canEdit();
 
+    if (!isScorekeeper()) return viewSignIn();
+
     var h = '<div class="sec-head"><h2>Settings</h2></div>';
 
     h += '<div class="panel">' +
-      '<div class="setrow"><div><div class="lbl">' + (signedIn ? "Signed in as the scorekeeper" : "Read-only") + "</div>" +
+      '<div class="setrow"><div><div class="lbl">Signed in as the scorekeeper</div>' +
         '<div class="hint">' + (signedIn
           ? "This device can enter results. Anyone else opening the link sees the ledger but cannot change it."
-          : "You are viewing the ledger. Only the scorekeeper's token can write to it.") + "</div></div>" +
-        (signedIn
-          ? '<button class="btn btn-sm btn-danger" data-act="signout">Sign out</button>'
-          : "") + "</div>";
-
-    if (!signedIn) {
-      h += '<div class="setbody">' +
-        "<p>If this is your ledger, paste your GitHub token to unlock editing on this device. It is stored on this device only and never leaves it except to talk to GitHub.</p>" +
-        '<div class="formgrid" style="padding:0">' +
-          '<div class="fld" style="flex:1 1 220px"><label class="field-label" for="tok">GitHub token</label>' +
-            '<input class="input" id="tok" type="password" placeholder="github_pat_…" autocomplete="off"></div>' +
-          '<button class="btn btn-primary" data-act="signin">Unlock editing</button></div>' +
-        "<p style='margin-top:10px'>Need one? Create a <b>fine-grained personal access token</b> in GitHub under Settings → Developer settings, scoped to this one repository, with <b>Contents: Read and write</b>. Set an expiry you're happy with — you can always issue a new one.</p>" +
-        "</div>";
-    }
+          : "You have a token, but no repository is set yet — fill it in under Storage below.") + "</div></div>" +
+        '<button class="btn btn-sm btn-danger" data-act="signout">Sign out</button></div>';
     h += "</div>";
 
     h += '<div class="sec-head"><h2>The game</h2></div><div class="panel">' +
@@ -1154,7 +1175,10 @@
   }
 
   function bind() {
-    document.getElementById("btn-settings").addEventListener("click", function () { go("settings"); });
+    document.getElementById("btn-settings").addEventListener("click", function () {
+      ui.showSignIn = false;
+      go("settings");
+    });
 
     document.addEventListener("click", function (ev) {
       var nav = ev.target.closest("[data-tab]");
@@ -1267,6 +1291,13 @@
           render(); break;
         }
 
+        case "revealsignin":
+          ui.showSignIn = true;
+          render();
+          var tf = document.getElementById("tok");
+          if (tf) tf.focus();
+          break;
+
         case "undo": doUndo(); break;
         case "redo": doRedo(); break;
 
@@ -1332,14 +1363,17 @@
           var t = (document.getElementById("tok") || {}).value || "";
           if (!t.trim()) return;
           Store.setToken(t.trim());
+          ui.showSignIn = false;
           Store.load().then(render);
           render();
+          toast("Editing unlocked on this device");
           break;
         }
 
         case "signout":
-          if (!confirm("Sign out of editing on this device?")) return;
+          if (!confirm("Sign out of editing on this device? The ledger stays exactly as it is.")) return;
           Store.setToken("");
+          ui.showSignIn = false;
           render(); break;
 
         case "setrepo": {

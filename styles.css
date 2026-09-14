@@ -607,6 +607,20 @@ code { font-family: var(--mono); font-size: .9em; background: var(--surface-2); 
 .footnote { margin-top: 26px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
 
 
+/* the viewer's whole settings screen */
+.signin .empty { padding: 40px 22px 22px; }
+.signin .empty h3 { font-size: 21px; }
+.signin-box {
+  border-top: 1px solid var(--line);
+  padding: 16px 18px 18px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.signin-hint {
+  margin: 0; font-size: 12.5px; color: var(--muted); text-align: center;
+  max-width: 52ch; line-height: 1.55;
+}
+.signin-hint b { color: var(--ink-2); font-weight: 600; }
+
 /* ---------------------------------------------------------------- recovery */
 
 .toast {

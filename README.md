@@ -80,9 +80,9 @@ This is the bit that makes you the scorekeeper.
    That's the only permission it needs. Leave everything else alone.
 6. Generate it and copy the token. GitHub shows it once.
 
-Now in the app: gear icon → paste it into **GitHub token** → **Unlock editing**.
-The token is stored in that browser on that device and is sent nowhere except
-GitHub. Do this on your phone, and the phone becomes the scorekeeper.
+Now in the app: gear icon → **I'm the scorekeeper** → paste the token → **Unlock
+editing**. It is stored in that browser on that device and is sent nowhere except
+GitHub. Do this on your phone, and that phone becomes the scorekeeper.
 
 ### 5. Put it on your phone
 
@@ -93,6 +93,14 @@ Open the URL on the phone and:
 
 It gets its own icon and opens without browser chrome. Send the same link to
 everyone else; they add it the same way and get a read-only copy.
+
+**What everyone else sees.** Exactly the ledger and nothing else. Their Settings
+screen is a single card saying they're watching the game, with a quiet *I'm the
+scorekeeper* button in case they're you on a new phone. No buy-in or currency
+controls, no repository fields, no bin, no version history, no backup buttons. Note
+that this is tidiness rather than security: `data.json` is public either way, and the
+repository is named in the URL. What actually stops them writing is not having a
+token.
 
 ---
 
@@ -228,7 +236,7 @@ something gets mangled you can see exactly when and revert it from the repo.
 | File | What lives there |
 |---|---|
 | `stats.js` | Every derived figure — the standings table, the record book, streaks. **New statistics go here.** |
-| `app.js` | Screens and interactions. |
+| `app.js` | Screens and interactions. `isScorekeeper()` gates the whole Settings screen; `canEdit()` gates writes. |
 | `charts.js` | The SVG charts. No chart library. |
 | `styles.css` | Design tokens at the top: colours, type, spacing. Change them in one place. |
 | `store.js` | Talking to GitHub, the local cache, offline retries, undo/redo and version history. |

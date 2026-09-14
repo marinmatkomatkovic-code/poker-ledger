@@ -2,7 +2,7 @@
    Bump CACHE whenever you change a shell file, or browsers will keep
    serving the old one. */
 
-const CACHE = "poker-ledger-v4";
+const CACHE = "poker-ledger-v5";
 
 const SHELL = [
   "./",
