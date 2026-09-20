@@ -36,6 +36,12 @@
       "name": "Rimski",
       "active": true,
       "joined": "2026-09-12"
+    },
+    {
+      "id": "meljnjak",
+      "name": "Meljnjak",
+      "active": true,
+      "joined": "2026-09-20"
     }
   ],
   "nights": [
