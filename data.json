@@ -84,6 +84,43 @@
       "notes": "",
       "createdAt": "2026-09-12T17:14:48.732Z",
       "closedAt": "2026-09-13T02:11:06.857Z"
+    },
+    {
+      "id": "2026-09-20",
+      "date": "2026-09-20",
+      "buyIn": 20,
+      "status": "open",
+      "start": "18:02",
+      "end": "",
+      "entries": {
+        "mula": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "komic": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "k-b": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "rimski": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "meljnjak": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "markota": {
+          "buyIns": 1,
+          "cashOut": null
+        }
+      },
+      "pots": [],
+      "notes": "",
+      "createdAt": "2026-09-20T16:02:07.229Z"
     }
   ],
   "trash": []
