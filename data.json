@@ -42,6 +42,12 @@
       "name": "Meljnjak",
       "active": true,
       "joined": "2026-09-20"
+    },
+    {
+      "id": "markota",
+      "name": "Markota",
+      "active": true,
+      "joined": "2026-09-20"
     }
   ],
   "nights": [
