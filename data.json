@@ -193,7 +193,7 @@
         },
         "markota": {
           "buyIns": 2,
-          "cashOut": null
+          "cashOut": 0
         }
       },
       "pots": [],
