@@ -232,6 +232,10 @@
         "braica": {
           "buyIns": 1,
           "cashOut": null
+        },
+        "markota": {
+          "buyIns": 1,
+          "cashOut": null
         }
       },
       "pots": [],
