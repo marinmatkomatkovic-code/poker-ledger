@@ -205,9 +205,9 @@
       "id": "2026-10-02",
       "date": "2026-10-02",
       "buyIn": 20,
-      "status": "open",
+      "status": "closed",
       "start": "20:30",
-      "end": "",
+      "end": "03:08",
       "entries": {
         "mula": {
           "buyIns": 3,
@@ -240,7 +240,8 @@
       },
       "pots": [],
       "notes": "",
-      "createdAt": "2026-10-02T18:31:05.445Z"
+      "createdAt": "2026-10-02T18:31:05.445Z",
+      "closedAt": "2026-10-03T01:08:34.069Z"
     }
   ],
   "trash": []
