@@ -211,7 +211,7 @@
       "entries": {
         "mula": {
           "buyIns": 3,
-          "cashOut": null
+          "cashOut": 0
         },
         "komic": {
           "buyIns": 1,
@@ -235,7 +235,7 @@
         },
         "markota": {
           "buyIns": 3,
-          "cashOut": null
+          "cashOut": 20
         }
       },
       "pots": [],
