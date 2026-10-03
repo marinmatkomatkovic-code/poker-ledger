@@ -223,7 +223,7 @@
         },
         "rimski": {
           "buyIns": 5,
-          "cashOut": null
+          "cashOut": 100
         },
         "meljnjak": {
           "buyIns": 3,
