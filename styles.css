@@ -171,6 +171,45 @@ body {
   background-attachment: fixed;
 }
 
+/* Table art behind every screen (Marin's Figma artwork, bg/table.jpg).
+   Dimmed in dark mode, washed out in light mode; panels stay solid so text
+   never sits on the picture. Tune with --art-filter / --art-opacity. */
+:root {
+  --art-opacity: .16;
+  --art-filter: brightness(.9) saturate(.6) blur(2px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --art-opacity: 1;
+    --art-filter: brightness(.42) saturate(.8) blur(2px);
+  }
+}
+:root[data-theme="dark"] {
+  --art-opacity: 1;
+  --art-filter: brightness(.42) saturate(.8) blur(2px);
+}
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+}
+body::before {
+  inset: -20px; /* room for the blur, so edges stay soft */
+  background: url("bg/table.jpg") center 35% / cover no-repeat;
+  opacity: var(--art-opacity);
+  filter: var(--art-filter);
+}
+/* fade the art into the app colour under the header and the bottom bar */
+body::after {
+  inset: 0;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--bg) 70%, transparent) 0%,
+    transparent 35%, transparent 60%,
+    color-mix(in srgb, var(--bg) 80%, transparent) 100%);
+}
+
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 

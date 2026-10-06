@@ -2,7 +2,7 @@
    Bump CACHE whenever you change a shell file, or browsers will keep
    serving the old one. */
 
-const CACHE = "poker-ledger-v6";
+const CACHE = "poker-ledger-v7";
 
 const SHELL = [
   "./",
@@ -15,7 +15,8 @@ const SHELL = [
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
-  "./icons/apple-touch-icon.png"
+  "./icons/apple-touch-icon.png",
+  "./bg/table.jpg"
 ];
 
 self.addEventListener("install", (e) => {
