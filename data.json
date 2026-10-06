@@ -269,7 +269,7 @@
         },
         "braica": {
           "buyIns": 1,
-          "cashOut": null
+          "cashOut": 30
         }
       },
       "pots": [],
