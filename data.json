@@ -304,6 +304,10 @@
         "braica": {
           "buyIns": 2,
           "cashOut": null
+        },
+        "meljnjak": {
+          "buyIns": 2,
+          "cashOut": null
         }
       },
       "pots": [],
