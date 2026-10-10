@@ -733,3 +733,14 @@ code { font-family: var(--mono); font-size: .9em; background: var(--surface-2); 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* Standings period switcher (All time / months) and month winners */
+.periodbar {
+  display: flex; gap: 8px; overflow-x: auto; margin: 20px 0 -4px; padding-bottom: 4px;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.periodbar::-webkit-scrollbar { display: none; }
+.periodbar .chip { flex: 0 0 auto; white-space: nowrap; }
+.chip.on, .chip.on:hover { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+.monthwins .winners { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; }
+.monthwins tr.selected td { background: var(--accent-soft); }

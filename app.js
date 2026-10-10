@@ -30,6 +30,7 @@
     tab: "tonight",
     player: null,
     sort: { key: "pnl", dir: "desc" },
+    month: null,          // Standings period: null = all time, else "YYYY-MM"
     openNights: {},
     charts: [],
     bumped: null,
@@ -540,8 +541,20 @@
 
   /* -------------------------------------------------------------- standings */
 
+  function monthLabel(m, short) {
+    var p = String(m).split("-");
+    try {
+      return new Date(+p[0], +p[1] - 1, 1).toLocaleDateString("en-GB",
+        short ? { month: "short", year: "numeric" } : { month: "long", year: "numeric" });
+    } catch (e) { return m; }
+  }
+
   function viewStandings() {
-    var rows = Stats.standings(D()).filter(function (r) { return r.nights > 0 || r.active; });
+    var months = Stats.months(D());
+    if (ui.month && months.indexOf(ui.month) < 0) ui.month = null;
+    var month = ui.month;
+    var thisMonth = todayISO().slice(0, 7);
+    var rows = Stats.standings(D(), month).filter(function (r) { return r.nights > 0 || (!month && r.active); });
     if (!rows.length) {
       return '<div class="panel" style="margin-top:20px"><div class="empty"><h3>Nothing on the books yet</h3>' +
         "<p>Standings fill in as soon as the first night is closed.</p></div></div>";
@@ -566,8 +579,18 @@
     ];
     if (timed) cols.push({ k: "perHour", label: "Per hour", cls: "num" });
 
-    var h = '<div class="sec-head"><h2>All-time standings</h2>' +
-      '<p class="sec-note">Closed nights only. Tap a row for that player.</p></div>';
+    var h = "";
+    if (months.length) {
+      h += '<div class="periodbar" role="tablist" aria-label="Standings period">' +
+        '<button class="chip plain' + (!month ? " on" : "") + '" role="tab" aria-selected="' + !month + '" data-act="month" data-m="">All time</button>' +
+        months.map(function (m) {
+          return '<button class="chip plain' + (month === m ? " on" : "") + '" role="tab" aria-selected="' + (month === m) +
+            '" data-act="month" data-m="' + esc(m) + '">' + esc(monthLabel(m, true)) + "</button>";
+        }).join("") + "</div>";
+    }
+    h += '<div class="sec-head"><h2>' + (month ? esc(monthLabel(month)) + " standings" : "All-time standings") + "</h2>" +
+      '<p class="sec-note">' + (month === thisMonth ? "So far this month. " : "") +
+      "Closed nights only. Tap a row for that player.</p></div>";
     h += '<div class="panel"><div class="tablescroll"><table><thead><tr><th class="rank"></th>' +
       cols.map(function (c) {
         return '<th class="' + c.cls + " sortable" + (key === c.k ? " sorted" : "") + '" data-sort="' + c.k + '">' +
@@ -598,21 +621,48 @@
     }, { buyIns: 0, moneyIn: 0, moneyOut: 0, pnl: 0 });
 
     h += '</tbody><tfoot><tr><td class="rank"></td><td>Table</td>' +
-      '<td class="num">' + Stats.closedNights(D()).length + "</td>" +
+      '<td class="num">' + Stats.closedNights(D()).filter(function (n) { return !month || Stats.monthOf(n) === month; }).length + "</td>" +
       '<td class="num">' + tot.buyIns + "</td>" +
       '<td class="num">' + money(tot.moneyIn) + "</td>" +
       '<td class="num">' + money(tot.moneyOut) + "</td>" +
       '<td class="num ' + signClass(tot.pnl) + '">' + (Math.abs(tot.pnl) < 0.005 ? money(0) : signed(tot.pnl)) + "</td>" +
       "<td></td>" + (timed ? "<td></td>" : "") + "<td></td></tr></tfoot></table></div></div>";
 
-    h += '<div class="legend"><span class="key"><span class="sw" style="background:var(--pos)"></span>Up over all time</span>' +
-      '<span class="key"><span class="sw" style="background:var(--neg)"></span>Down over all time</span></div>';
+    var span = month ? "that month" : "all time";
+    h += '<div class="legend"><span class="key"><span class="sw" style="background:var(--pos)"></span>Up over ' + span + "</span>" +
+      '<span class="key"><span class="sw" style="background:var(--neg)"></span>Down over ' + span + "</span></div>";
 
     if (Math.abs(tot.pnl) > 0.005) {
       h += '<div class="banner banner-warn"><span><b>These should add up to zero.</b> They come to ' + esc(signed(tot.pnl)) +
         ", which means a cash-out on one of the nights is wrong. The History tab flags the night that doesn't balance.</span></div>";
     }
+
+    h += viewMonthWinners(month, thisMonth);
     return h;
+  }
+
+  function viewMonthWinners(selected, thisMonth) {
+    var list = Stats.monthWinners(D());
+    if (!list.length) return "";
+    var h = '<div class="sec-head"><h2>Month winners</h2>' +
+      '<p class="sec-note">Biggest P&amp;L each month. Tap a month to see its table.</p></div>';
+    h += '<div class="panel"><div class="tablescroll"><table class="monthwins"><thead><tr>' +
+      '<th>Month</th><th>Winner</th><th class="num">P&amp;L</th><th class="num">Nights</th></tr></thead><tbody>';
+    list.forEach(function (m) {
+      var who = m.winners.length
+        ? m.winners.map(function (r) {
+            return '<span class="namecell">' + avatar(r.id, "av-sm") + "<span>" + esc(r.name) + "</span></span>";
+          }).join("")
+        : '<span class="sec-note">Nobody finished up</span>';
+      h += '<tr class="clickable' + (selected === m.month ? " selected" : "") + '" data-act="month" data-m="' + esc(m.month) + '">' +
+        '<td class="name" style="white-space:nowrap">' + esc(monthLabel(m.month, true)) +
+          (m.month === thisMonth ? ' <span class="pill pill-text">so far</span>' : "") + "</td>" +
+        '<td class="name"><span class="winners">' + who + "</span></td>" +
+        '<td class="num ' + (m.winners.length ? signClass(m.pnl) : "zero") + '" style="font-weight:600">' +
+          (m.winners.length ? signed(m.pnl) : "—") + "</td>" +
+        '<td class="num">' + m.nights + "</td></tr>";
+    });
+    return h + "</tbody></table></div></div>";
   }
 
   /* ---------------------------------------------------------------- records */
@@ -1205,6 +1255,12 @@
           ui.player = pid; ui.tab = "players"; window.scrollTo(0, 0); render(); break;
         case "closeplayer":
           ui.player = null; render(); break;
+
+        case "month":
+          ui.month = el.getAttribute("data-m") || null;
+          render();
+          if (el.closest(".monthwins")) window.scrollTo({ top: 0, behavior: "smooth" });
+          break;
 
         case "buyins":
           ui.bumped = pid;

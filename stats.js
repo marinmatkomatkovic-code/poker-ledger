@@ -100,15 +100,18 @@ PL.Stats = (function () {
     return t;
   }
 
-  /** Per-player all-time table, over closed nights only. */
-  function standings(data) {
+  /** "2026-10" for a night (by its date, so a night past midnight stays in its month). */
+  function monthOf(night) { return String(night.date || night.id || "").slice(0, 7); }
+
+  /** Per-player table over closed nights only — all time, or one month ("YYYY-MM"). */
+  function standings(data, month) {
     var byId = {};
 
     data.players.forEach(function (p) {
       byId[p.id] = blank(p.id, p.name, p.active !== false);
     });
 
-    closedNights(data).forEach(function (night) {
+    closedNights(data).filter(function (n) { return !month || monthOf(n) === month; }).forEach(function (night) {
       var e = night.entries || {};
       Object.keys(e).forEach(function (pid) {
         if (!byId[pid]) byId[pid] = blank(pid, nameOf(data, pid), false);
@@ -154,6 +157,29 @@ PL.Stats = (function () {
       mostBuyIns: 0, mostBuyInsNight: "",
       minutes: 0, timedNights: 0, timedPnl: 0, longest: null, longestNight: ""
     };
+  }
+
+  /** Months that have at least one closed night, newest first. */
+  function months(data) {
+    var seen = {};
+    closedNights(data).forEach(function (n) { seen[monthOf(n)] = true; });
+    return Object.keys(seen).sort().reverse();
+  }
+
+  /** Each month's winner(s) by P&L, newest first. Ties share the month. */
+  function monthWinners(data) {
+    return months(data).map(function (m) {
+      var rows = standings(data, m).filter(function (r) { return r.nights > 0; });
+      var top = rows.reduce(function (b, r) { return Math.max(b, r.pnl); }, -Infinity);
+      var winners = rows.filter(function (r) { return Math.abs(r.pnl - top) < 0.005; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name); });
+      return {
+        month: m,
+        nights: closedNights(data).filter(function (n) { return monthOf(n) === m; }).length,
+        pnl: top,
+        winners: top > 0 ? winners : []   // nobody "wins" a month where nobody is up
+      };
+    });
   }
 
   /** Running profit for one player, night by night. */
@@ -315,6 +341,9 @@ PL.Stats = (function () {
     hasCashOut: hasCashOut,
     nightTotals: nightTotals,
     standings: standings,
+    monthOf: monthOf,
+    months: months,
+    monthWinners: monthWinners,
     cumulative: cumulative,
     attendance: attendance,
     attendanceStreak: attendanceStreak,
