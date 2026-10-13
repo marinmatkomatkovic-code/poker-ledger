@@ -314,6 +314,39 @@
       "notes": "",
       "createdAt": "2026-10-09T18:14:00.578Z",
       "closedAt": "2026-10-09T23:40:21.584Z"
+    },
+    {
+      "id": "2026-10-13",
+      "date": "2026-10-13",
+      "buyIn": 20,
+      "status": "open",
+      "start": "19:01",
+      "end": "",
+      "entries": {
+        "komic": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "k-b": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "rimski": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "meljnjak": {
+          "buyIns": 1,
+          "cashOut": null
+        },
+        "braica": {
+          "buyIns": 1,
+          "cashOut": null
+        }
+      },
+      "pots": [],
+      "notes": "",
+      "createdAt": "2026-10-13T17:01:13.367Z"
     }
   ],
   "trash": []
