@@ -329,11 +329,11 @@
         },
         "k-b": {
           "buyIns": 7,
-          "cashOut": null
+          "cashOut": 20
         },
         "rimski": {
           "buyIns": 3,
-          "cashOut": null
+          "cashOut": 0
         },
         "meljnjak": {
           "buyIns": 3,
