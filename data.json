@@ -319,9 +319,9 @@
       "id": "2026-10-13",
       "date": "2026-10-13",
       "buyIn": 20,
-      "status": "open",
+      "status": "closed",
       "start": "19:01",
-      "end": "",
+      "end": "02:03",
       "entries": {
         "komic": {
           "buyIns": 1,
@@ -346,7 +346,8 @@
       },
       "pots": [],
       "notes": "",
-      "createdAt": "2026-10-13T17:01:13.367Z"
+      "createdAt": "2026-10-13T17:01:13.367Z",
+      "closedAt": "2026-10-14T00:03:36.857Z"
     }
   ],
   "trash": []
