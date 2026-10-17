@@ -359,7 +359,7 @@
       "entries": {
         "komic": {
           "buyIns": 1,
-          "cashOut": null
+          "cashOut": 100
         },
         "k-b": {
           "buyIns": 2,
