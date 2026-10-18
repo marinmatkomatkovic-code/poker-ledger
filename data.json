@@ -375,7 +375,7 @@
         },
         "braica": {
           "buyIns": 2,
-          "cashOut": null
+          "cashOut": 60
         }
       },
       "pots": [],
