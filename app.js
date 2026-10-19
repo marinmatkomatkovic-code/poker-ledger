@@ -282,7 +282,75 @@
     toast(name + " moved to the bin", "Undo", doUndo);
   }
 
-  function startNight(date, buyIn, ids, start) {
+  /* ---------------------------------------------------------------- video
+     Nights keep YouTube video IDs only (night.stream while live, night.highlight
+     afterwards). Any link form pastes in: watch?v=, youtu.be/, /live/, /shorts/,
+     /embed/, a YouTube Studio video link, or the bare 11-character ID. */
+
+  function ytId(text) {
+    var s = String(text || "").trim();
+    if (!s) return "";
+    if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+    var u;
+    try { u = new URL(/^https?:\/\//i.test(s) ? s : "https://" + s); } catch (e) { return null; }
+    var host = u.hostname.replace(/^(www|m|music)\./, "");
+    var id = null;
+    if (host === "youtu.be") id = u.pathname.split("/")[1];
+    else if (host === "studio.youtube.com") { var sm = u.pathname.match(/^\/video\/([^/?#]+)/); id = sm && sm[1]; }
+    else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+      id = u.searchParams.get("v");
+      var m = u.pathname.match(/^\/(?:live|shorts|embed|v)\/([^/?#]+)/);
+      if (!id && m) id = m[1];
+    }
+    return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+  }
+
+  function ytWatch(id) { return "https://www.youtube.com/watch?v=" + encodeURIComponent(id); }
+
+  function ytFrame(id, autoplay) {
+    return '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(id) +
+      "?playsinline=1&rel=0&modestbranding=1" + (autoplay ? "&autoplay=1" : "") + '"' +
+      ' title="YouTube video" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"' +
+      ' allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  }
+
+  /** Click-to-play: a thumbnail until tapped, so History never loads players it doesn't need. */
+  function ytPoster(id, label) {
+    return '<button class="video-poster" data-act="playvideo" data-yt="' + esc(id) + '" aria-label="Play ' + esc(label) + '"' +
+      ' style="background-image:url(https://i.ytimg.com/vi/' + encodeURIComponent(id) + '/hqdefault.jpg)">' +
+      '<span class="video-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"></path></svg></span></button>';
+  }
+
+  /** Paste field shared by the stream (Tonight) and highlight (History) links. */
+  function videoField(act, sid, id, label, hint) {
+    return '<div class="addrow videofield"><label class="field-label" for="' + act + "-" + esc(sid) + '" style="margin:0 4px 0 0">' + esc(label) + "</label>" +
+      '<input class="input" id="' + act + "-" + esc(sid) + '" data-act="' + act + '" data-sid="' + esc(sid) + '"' +
+        ' placeholder="Paste a YouTube link" autocomplete="off" inputmode="url" value="' + (id ? esc(ytWatch(id)) : "") + '">' +
+      (id ? '<button class="btn btn-sm btn-quiet" data-act="' + act + '-clear" data-sid="' + esc(sid) + '">Remove</button>' : "") +
+      (hint ? '<span class="sec-note videohint">' + esc(hint) + "</span>" : "") +
+      "</div>";
+  }
+
+  /* The live window sits outside #view, so taps that re-render the ledger
+     (buy-ins, cash-outs) never restart the stream. It only changes when the
+     video itself changes, or you leave Tonight. */
+  var liveBox, liveKey = "";
+  function renderLive() {
+    if (!liveBox) return;
+    var live = Stats.openNight(D());
+    var id = ui.tab === "tonight" && live && live.stream ? live.stream : "";
+    var key = id ? live.id + ":" + id : "";
+    if (key === liveKey) return;
+    liveKey = key;
+    if (!id) { liveBox.innerHTML = ""; liveBox.hidden = true; return; }
+    liveBox.hidden = false;
+    liveBox.innerHTML = '<div class="panel videopanel">' +
+      '<div class="videohead"><span class="pill pill-live"><span class="dot"></span>Live</span>' +
+        '<span class="videotitle">' + esc(Charts.fullDate(live.date)) + "</span></div>" +
+      '<div class="video">' + ytFrame(id, false) + "</div></div>";
+  }
+
+  function startNight(date, buyIn, ids, start, stream) {
     if (!canEdit()) return;
     var id = uniqueId(date, D().nights.map(function (n) { return n.id; }));
     Store.commit(function (d) {
@@ -293,6 +361,7 @@
         start: Stats.clock(start) === null ? "" : start, end: "",
         entries: entries, pots: [], notes: "", createdAt: new Date().toISOString()
       });
+      if (stream) d.nights[d.nights.length - 1].stream = stream;
       d.config.buyIn = buyIn;
     }, "Start night " + date);
     ui.tab = "tonight";
@@ -389,6 +458,10 @@
       "</div>";
 
     h += clockRow(live, editable);
+    if (editable) {
+      h += videoField("setstream", live.id, live.stream || "", "Live stream",
+        live.stream ? "Everyone with the app sees it above." : "Paste the link once you go live in OBS.");
+    }
 
     h += '<div class="playerrows">';
     ids.forEach(function (pid) {
@@ -528,6 +601,8 @@
           '<input class="input input-num" id="new-buyin" inputmode="decimal" value="' + esc(cfg().buyIn) + '"></div>' +
         '<div class="fld" style="flex:0 1 130px"><label class="field-label" for="new-start">Start time</label>' +
           '<input class="input input-time" type="time" id="new-start" value="' + nowHM() + '"></div>' +
+        '<div class="fld" style="flex:1 1 240px"><label class="field-label" for="new-stream">Live stream (optional)</label>' +
+          '<input class="input" id="new-stream" placeholder="Paste a YouTube link" autocomplete="off" inputmode="url"></div>' +
       "</div>" +
       '<div class="addrow" style="border-top:0"><span class="field-label" style="margin:0 4px 0 0">At the table</span>' +
         actives.map(function (p) {
@@ -781,6 +856,11 @@
         '<td class="num ' + signClass(net) + '">' + signed(net) + "</td></tr>";
     });
     h += "</tbody></table></div>";
+    if (n.highlight) {
+      h += '<div class="highlight"><div class="videohead"><span class="videotitle">Highlights</span></div>' +
+        '<div class="video">' + ytPoster(n.highlight, "highlights from " + Charts.fullDate(n.date)) + "</div></div>";
+    }
+    if (canEdit()) h += videoField("sethighlight", n.id, n.highlight || "", "Highlight video", "");
     if (n.start) {
       h += '<p class="sec-note" style="margin:10px 0 0">Started ' + esc(n.start) +
         (n.end ? ", finished " + esc(n.end) + " · " + esc(hm(Stats.duration(n))) : ", no finish time") + "</p>";
@@ -1157,6 +1237,7 @@
 
     view.innerHTML = html;
     mountCharts();
+    renderLive();
 
     var live = Stats.openNight(D());
     footnote.textContent = canEdit()
@@ -1388,6 +1469,20 @@
           break;
         }
 
+        case "playvideo": {
+          var box = el.parentNode;
+          if (box) box.innerHTML = ytFrame(el.getAttribute("data-yt"), true);
+          break;
+        }
+
+        case "setstream-clear":
+          withNight(sid, function (n) { delete n.stream; }, "Remove live stream");
+          render(); break;
+
+        case "sethighlight-clear":
+          withNight(sid, function (n) { delete n.highlight; }, "Remove highlight video");
+          render(); break;
+
         case "togglenight":
           ui.openNights[sid] = !ui.openNights[sid]; render(); break;
 
@@ -1397,7 +1492,9 @@
           var picks = Array.prototype.map.call(document.querySelectorAll(".seatpick:checked"), function (c) { return c.value; });
           if (!picks.length) { alert("Pick at least one player for tonight."); return; }
           if (buyIn === null || buyIn <= 0) { alert("Set a buy-in above zero."); return; }
-          startNight(date, buyIn, picks, (document.getElementById("new-start") || {}).value || "");
+          var streamId = ytId((document.getElementById("new-stream") || {}).value);
+          if (streamId === null) { alert("That doesn't look like a YouTube link. Leave it empty or paste the link from YouTube."); return; }
+          startNight(date, buyIn, picks, (document.getElementById("new-start") || {}).value || "", streamId);
           break;
         }
 
@@ -1450,6 +1547,18 @@
       if (!act) return;
       var live = Stats.openNight(D());
       var pid = el.getAttribute("data-pid");
+
+      if (act === "setstream" || act === "sethighlight") {
+        var vid = ytId(el.value);
+        if (vid === null) { toast("That doesn't look like a YouTube link"); el.value = ""; return; }
+        var vsid = el.getAttribute("data-sid");
+        var vfield = act === "setstream" ? "stream" : "highlight";
+        withNight(vsid, function (n) { if (vid) n[vfield] = vid; else delete n[vfield]; },
+          vid ? (vfield === "stream" ? "Set live stream" : "Set highlight video")
+              : (vfield === "stream" ? "Remove live stream" : "Remove highlight video"));
+        render();
+        return;
+      }
 
       if (act === "cashout" && live) {
         withNight(live.id, function (n) {
@@ -1542,6 +1651,7 @@
     gametitle = document.getElementById("gametitle");
     saveChip = document.getElementById("savechip");
     tooltip = document.getElementById("tooltip");
+    liveBox = document.getElementById("live");
 
     bind();
     Store.on(function () { renderChrome(); renderNotices(); });
