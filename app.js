@@ -417,9 +417,123 @@
     saveChip.setAttribute("data-state", st.status);
   }
 
+  /* ------------------------------------------------------------------- lock
+     Once the scorekeeper locks the ledger, nothing shows until a password
+     opens it: the weekly one, or the scorekeeper's own. The screen is kept
+     deliberately bare — a field, the eye, and Unlock. */
+
+  var lockEl;
+  function lockedNow() { return Store.isEncrypted() && Store.isLocked(); }
+
+  function renderLock() {
+    var on = lockedNow();
+    document.body.classList.toggle("is-locked", on);
+    lockEl.hidden = !on;
+    if (!on) { lockEl.innerHTML = ""; return; }
+    if (lockEl.firstChild) return;   // keep whatever is being typed
+    var env = Store.state.env || {};
+    lockEl.innerHTML =
+      '<form class="lock" id="lockform" autocomplete="on">' +
+        '<img class="lock-icon" src="icons/icon-192.png" alt="">' +
+        '<p class="lock-eyebrow">' + esc(env.eyebrow || "Home game ledger") + "</p>" +
+        '<h1 class="lock-title">Poker Night Ledger</h1>' +
+        '<div class="lock-card">' +
+          '<p><label for="lock-pw">Enter password to see the ledger.</label></p>' +
+          '<input type="text" name="username" value="poker-ledger" autocomplete="username" hidden>' +
+          '<div class="pw"><input class="input" id="lock-pw" type="password" placeholder="Password"' +
+            ' autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required>' +
+            '<button type="button" class="eye" data-act="peek" aria-label="Show password" aria-pressed="false">' + eyeIcon(false) + "</button></div>" +
+          '<button type="submit" class="btn btn-primary" id="lock-go">Unlock</button>' +
+        "</div></form>";
+  }
+
+  function eyeIcon(open) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      (open
+        ? '<path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>'
+        : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>') +
+      "</svg>";
+  }
+
+  function submitLock() {
+    var inp = document.getElementById("lock-pw"), go = document.getElementById("lock-go");
+    if (!inp || !inp.value.trim()) return;
+    go.disabled = true; go.textContent = "Unlocking…";
+    inp.classList.remove("bad");
+    Store.unlock(inp.value).then(function (ok) {
+      if (ok) { lockEl.innerHTML = ""; render(); Store.load().then(render); return; }
+      go.disabled = false; go.textContent = "Unlock";
+      inp.classList.add("bad");
+      var card = lockEl.querySelector(".lock-card");
+      if (card) { card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake"); }
+      inp.select();
+    });
+  }
+
+  /* ---- the weekly password, for the scorekeeper to pass on ---- */
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+
+  var weeklyLoading = false;
+  function weeklyPw() {
+    var wk = Store.weekOfPassword();
+    if (ui.weekly && ui.weekly.week === wk && ui.weekly.changed === changedAt()) return ui.weekly.pw;
+    if (!weeklyLoading && Store.isEncrypted() && !Store.isLocked()) {
+      weeklyLoading = true;
+      Store.weeklyPassword().then(function (pw) {
+        weeklyLoading = false;
+        ui.weekly = { week: wk, changed: changedAt(), pw: pw };
+        renderNotices();
+        if (ui.tab === "settings") render();
+      });
+    }
+    return "";
+  }
+  function changedAt() { var e = Store.state.env; return e && e.slots.weekly ? e.slots.weekly.changed || "" : ""; }
+  function sharedKey() { return Store.weekOfPassword() + "|" + changedAt(); }
+  function markShared() { lsSet("pl:shared", sharedKey()); renderNotices(); }
+
+  function shareText(pw) {
+    var url = location.origin + location.pathname.replace(/index\.html$/, "");
+    return (cfg().gameName || "Poker Night Ledger") + " password: " + pw + "\n" + url;
+  }
+
+  function sharePassword(pw) {
+    if (!pw) return;
+    var text = shareText(pw);
+    markShared();
+    if (navigator.share) navigator.share({ text: text }).catch(function () { /* closed the sheet */ });
+    else window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener");
+  }
+
+  function copyText(t, what) {
+    if (!t) return;
+    var done = function () { toast(what + " copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { prompt("Copy this:", t); });
+    else prompt("Copy this:", t);
+  }
+
+  var wordsCache = null;
+  function newPassword() {
+    var get = wordsCache ? Promise.resolve(wordsCache)
+      : fetch("words.json", { cache: "no-store" }).then(function (r) { return r.json(); }).then(function (w) { wordsCache = w; return w; });
+    return get.then(function (w) { return PL.Crypt.generatePassword(w, 4); });
+  }
+
   function renderNotices() {
     var out = "";
     var st = Store.state;
+
+    // Scorekeeper only: a new weekly password that hasn't gone to the group yet.
+    if (canEdit() && Store.isEncrypted() && !Store.isLocked() && Store.weekOfPassword() && lsGet("pl:shared") !== sharedKey()) {
+      var pw = weeklyPw();
+      if (pw) {
+        out += '<div class="banner banner-pw"><span class="pw-text">New password this week: <b class="mono">' + esc(pw) + "</b></span>" +
+          '<span class="pw-acts"><button class="btn btn-sm btn-primary" data-act="sharepw">Share to group</button>' +
+          '<button class="btn btn-sm btn-quiet" data-act="sharedismiss" aria-label="Dismiss">✕</button></span></div>';
+      }
+    }
 
     if (st.message) {
       out += '<div class="banner banner-warn"><span>' + esc(st.message) + "</span></div>";
@@ -1041,6 +1155,61 @@
       "</div></div>";
   }
 
+  function viewLockSettings() {
+    var h = '<div class="sec-head"><h2>Password lock</h2>' +
+      '<p class="sec-note">' + (Store.isEncrypted() ? "On" : "Off") + "</p></div>";
+
+    if (!PL.Crypt.available()) {
+      return h + '<div class="panel"><div class="empty"><p>This browser can\'t encrypt. Open the app over https in a current browser.</p></div></div>';
+    }
+
+    if (!Store.isEncrypted()) {
+      return h + '<div class="panel"><div class="setbody">' +
+        "<p>Lock the ledger so the app asks for a password before showing anything. From then on, " +
+        "<code>data.json</code> on GitHub is stored encrypted, so nobody can read it without a password.</p>" +
+        "<p><b>Your scorekeeper password</b> always opens the app and never changes. Choose four or more words you won't forget — " +
+        "it can't be changed later. Everyone else uses a <b>weekly password</b> the app makes for you, which changes every Monday at 08:00.</p></div>" +
+        '<div class="formgrid" style="border-top:1px solid var(--line)">' +
+          '<div class="fld"><label class="field-label" for="kp1">Scorekeeper password</label>' +
+            '<input class="input" id="kp1" type="password" autocomplete="new-password" autocapitalize="none" spellcheck="false"></div>' +
+          '<div class="fld"><label class="field-label" for="kp2">Type it again</label>' +
+            '<input class="input" id="kp2" type="password" autocomplete="new-password" autocapitalize="none" spellcheck="false"></div>' +
+        "</div>" +
+        '<div class="rowfoot"><div class="sec-note">Older versions already on GitHub stay as they are.</div>' +
+          '<button class="btn btn-primary" data-act="lockledger"' + (ui.locking ? " disabled" : "") + ">" + (ui.locking ? "Locking…" : "Lock the ledger") + "</button></div>" +
+        "</div>";
+    }
+
+    var pw = weeklyPw();
+    var opened = Store.state.slot === "keeper" ? "your scorekeeper password" : "the weekly password";
+    h += '<div class="panel">';
+    if (ui.lockFresh) {
+      h += '<div class="setbody lockdone"><p><b>The ledger is locked.</b> One step left so the password can change on its own every Monday: ' +
+        "copy the key below and add it to GitHub. Then share this week's password with the group.</p></div>";
+    }
+    h += '<div class="setrow"><div><div class="lbl">This week\'s password</div>' +
+        '<div class="hint"><span class="mono pwval">' + (pw ? esc(pw) : "…") + "</span><br>Changes every Monday at 08:00. " +
+        "This phone opened the ledger with " + opened + ".</div></div>" +
+        '<div class="btnpair"><button class="btn btn-sm" data-act="copypw">Copy</button>' +
+        '<button class="btn btn-sm btn-primary" data-act="sharepw">Share</button></div></div>';
+    h += '<div class="setrow"><div><div class="lbl">New password now</div>' +
+        '<div class="hint">Don\'t wait for Monday — for example if someone left the group. Everyone needs the new one afterwards.</div></div>' +
+        '<button class="btn btn-sm' + (ui.confirmRotate ? " btn-danger" : "") + '" data-act="newweekly">' +
+          (ui.confirmRotate ? "Tap again to change" : "Change") + "</button></div>";
+    h += '<div class="setrow keyrow' + (ui.lockFresh ? " keyfresh" : "") + '"><div><div class="lbl">Key for the Monday change</div>' +
+        '<div class="hint">GitHub needs this once to change the password every Monday. In your repo on github.com: ' +
+        "<b>Settings → Secrets and variables → Actions → New repository secret</b>, name <code>LEDGER_KEY</code>, paste the key. " +
+        "Keep it private — it opens the ledger.</div>" +
+        (ui.showKey ? '<div class="mono keyval">' + esc(Store.dataKey()) + "</div>" : "") + "</div>" +
+        '<div class="btnpair"><button class="btn btn-sm" data-act="showkey">' + (ui.showKey ? "Hide" : "Show") + "</button>" +
+        '<button class="btn btn-sm" data-act="copykey">Copy</button></div></div>';
+    h += '<div class="setrow"><div><div class="lbl">Lock this phone</div>' +
+        '<div class="hint">Forget the password on this device. It asks again next time.</div></div>' +
+        '<button class="btn btn-sm" data-act="lockphone">Lock</button></div>';
+    h += "</div>";
+    return h;
+  }
+
   function viewSettings() {
     var repo = Store.state.repo;
     var signedIn = canEdit();
@@ -1056,6 +1225,8 @@
           : "You have a token, but no repository is set yet — fill it in under Storage below.") + "</div></div>" +
         '<button class="btn btn-sm btn-danger" data-act="signout">Sign out</button></div>';
     h += "</div>";
+
+    if (signedIn) h += viewLockSettings();
 
     h += '<div class="sec-head"><h2>The game</h2></div><div class="panel">' +
       setRow("Standard buy-in", "What one buy-in costs. Each night keeps the amount it was played at, so changing this never rewrites history.",
@@ -1223,6 +1394,8 @@
   }
 
   function render() {
+    renderLock();
+    if (lockedNow()) return;
     var f = snapshotFocus();
     renderChrome();
     renderNotices();
@@ -1469,6 +1642,59 @@
           break;
         }
 
+        case "peek": {
+          var pin = document.getElementById("lock-pw");
+          if (!pin) break;
+          var show = pin.type === "password";
+          pin.type = show ? "text" : "password";
+          el.innerHTML = eyeIcon(show);
+          el.setAttribute("aria-pressed", String(show));
+          el.setAttribute("aria-label", show ? "Hide password" : "Show password");
+          pin.focus();
+          break;
+        }
+
+        case "lockledger": {
+          var k1 = (document.getElementById("kp1") || {}).value || "";
+          var k2 = (document.getElementById("kp2") || {}).value || "";
+          if (PL.Crypt.normalise(k1).length < 12) { alert("Use at least 12 characters — four words is ideal."); return; }
+          if (PL.Crypt.normalise(k1) !== PL.Crypt.normalise(k2)) { alert("The two passwords don't match."); return; }
+          ui.locking = true; render();
+          newPassword().then(function (weekly) {
+            return Store.lockLedger(k1, weekly).then(function () {
+              ui.weekly = null; ui.lockFresh = true; ui.showKey = true; ui.locking = false;
+              render();
+              window.scrollTo(0, 0);
+            });
+          }).catch(function () {
+            ui.locking = false; render();
+            alert("Couldn't lock the ledger. Nothing was changed — check the connection and try again.");
+          });
+          break;
+        }
+
+        case "newweekly": {
+          if (!ui.confirmRotate) {
+            ui.confirmRotate = true; render();
+            setTimeout(function () { if (ui.confirmRotate) { ui.confirmRotate = false; render(); } }, 5000);
+            break;
+          }
+          ui.confirmRotate = false;
+          newPassword().then(function (pw2) { return Store.newWeeklyPassword(pw2); })
+            .then(function () { ui.weekly = null; render(); toast("New password made — share it with the group"); })
+            .catch(function () { render(); alert("Couldn't change the password. Nothing was changed."); });
+          break;
+        }
+
+        case "sharepw": sharePassword(weeklyPw()); break;
+        case "sharedismiss": markShared(); break;
+        case "copypw": copyText(weeklyPw(), "Password"); break;
+        case "copykey": copyText(Store.dataKey(), "Key"); break;
+        case "showkey": ui.showKey = !ui.showKey; render(); break;
+
+        case "lockphone":
+          Store.lockPhone(); ui.weekly = null; ui.lockFresh = false; render(); break;
+
         case "playvideo": {
           var box = el.parentNode;
           if (box) box.innerHTML = ytFrame(el.getAttribute("data-yt"), true);
@@ -1527,6 +1753,7 @@
           if (!confirm("Sign out of editing on this device? The ledger stays exactly as it is.")) return;
           Store.setToken("");
           ui.showSignIn = false;
+          if (Store.isEncrypted() && Store.state.slot === "keeper") Store.lockPhone();   // don't leave your own password behind
           render(); break;
 
         case "setrepo": {
@@ -1652,9 +1879,22 @@
     saveChip = document.getElementById("savechip");
     tooltip = document.getElementById("tooltip");
     liveBox = document.getElementById("live");
+    lockEl = document.getElementById("lockscreen");
 
     bind();
-    Store.on(function () { renderChrome(); renderNotices(); });
+    document.addEventListener("submit", function (ev) {
+      if (ev.target && ev.target.id === "lockform") { ev.preventDefault(); submitLock(); }
+    });
+    document.addEventListener("input", function (ev) {
+      if (ev.target && ev.target.id === "lock-pw") ev.target.classList.remove("bad");
+    });
+    var lastLocked = null;
+    Store.on(function () {
+      var now = lockedNow();
+      if (now !== lastLocked) { lastLocked = now; render(); return; }
+      if (now) return;
+      renderChrome(); renderNotices();
+    });
     render();
     Store.init().then(render);
 

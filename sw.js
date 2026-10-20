@@ -2,12 +2,13 @@
    Bump CACHE whenever you change a shell file, or browsers will keep
    serving the old one. */
 
-const CACHE = "poker-ledger-v10";
+const CACHE = "poker-ledger-v11";
 
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
+  "./crypto.js",
   "./store.js",
   "./stats.js",
   "./charts.js",

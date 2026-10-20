@@ -26,6 +26,12 @@
    Local:  a copy in localStorage, so the app opens instantly and keeps
            working with no signal. Unsaved changes retry when the
            connection returns.
+
+   Lock:   once the scorekeeper locks the ledger (crypto.js), data.json and
+           the local copy are only ever written encrypted. The app opens to
+           a password screen until a weekly or scorekeeper password unlocks
+           the data key; the password is remembered on that phone, and a
+           phone whose weekly password has since changed is asked again.
    ========================================================================== */
 
 window.PL = window.PL || {};
@@ -38,6 +44,8 @@ PL.Store = (function () {
   var LS_DIRTY = "pl:dirty";
   var LS_TOKEN = "pl:token";
   var LS_REPO = "pl:repo";
+  var LS_PASS = "pl:pass";
+  var Crypt = PL.Crypt;
 
   var SAVE_DELAY = 2000;
   var UNDO_DEPTH = 40;
@@ -59,7 +67,14 @@ PL.Store = (function () {
     status: "idle",
     message: "",
     loadedRemote: false,
-    pendingLabel: null
+    pendingLabel: null,
+    /* lock */
+    env: null,        // the file's lock (crypto header) once the ledger is encrypted
+    sealed: null,     // the newest encrypted file seen, waiting for a password
+    raw: null,        // the data key, once unlocked (memory only)
+    slot: null,       // which password opened it: "weekly" | "keeper"
+    slotSig: "",      // that slot exactly — if GitHub's copy differs, the password changed
+    locked: false
   };
 
   function emptyLedger() {
@@ -126,18 +141,47 @@ PL.Store = (function () {
     try {
       var raw = localStorage.getItem(LS_DATA);
       if (!raw) return false;
-      S.data = migrate(JSON.parse(raw));
+      var j = JSON.parse(raw);
+      if (Crypt.isLocked(j)) {
+        S.sealed = j;
+        S.env = Crypt.header(j);
+        S.locked = true;
+        S.data = emptyLedger();
+      } else {
+        S.data = migrate(j);
+      }
       S.sha = localStorage.getItem(LS_SHA) || null;
       S.dirty = localStorage.getItem(LS_DIRTY) === "1";
       return true;
     } catch (e) { return false; }
   }
 
+  /* Once encrypted, the phone's copy is encrypted too — a phone whose
+     password has changed holds nothing readable. Writes are queued so an
+     older copy never lands after a newer one. */
+  var localQueue = Promise.resolve();
   function writeLocal() {
-    try {
-      localStorage.setItem(LS_DATA, JSON.stringify(S.data));
+    var meta = function () {
       if (S.sha) localStorage.setItem(LS_SHA, S.sha);
       localStorage.setItem(LS_DIRTY, S.dirty ? "1" : "0");
+    };
+    if (S.env) {
+      if (!S.raw) {   // locked: keep whatever sealed copy we have
+        try { if (S.sealed) localStorage.setItem(LS_DATA, JSON.stringify(S.sealed)); meta(); } catch (e) { /* quota */ }
+        return;
+      }
+      var snapshot = clone(S.data), raw = S.raw, head = S.env;
+      localQueue = localQueue.then(function () {
+        return Crypt.close(raw, head, snapshot).then(function (file) {
+          S.sealed = file;
+          try { localStorage.setItem(LS_DATA, JSON.stringify(file)); meta(); } catch (e) { /* quota */ }
+        });
+      }).catch(function () { /* never break the chain */ });
+      return;
+    }
+    try {
+      localStorage.setItem(LS_DATA, JSON.stringify(S.data));
+      meta();
     } catch (e) { /* quota — not fatal */ }
   }
 
@@ -198,15 +242,139 @@ PL.Store = (function () {
     return h;
   }
 
+  /* ---------------- lock ---------------- */
+
+  function remembered() { try { return localStorage.getItem(LS_PASS) || ""; } catch (e) { return ""; } }
+  function remember(pw) { try { localStorage.setItem(LS_PASS, pw); } catch (e) { /* ignore */ } }
+
+  function isEncrypted() { return !!S.env; }
+  function isLocked() { return S.locked; }
+
+  /** Take in a file from GitHub (or the deployed copy). Encrypted files are
+   *  opened with the key in hand, or the phone's remembered password. */
+  function adopt(file) {
+    if (!Crypt.isLocked(file)) {
+      S.env = null; S.sealed = null; S.raw = null; S.slot = null; S.locked = false;
+      S.data = migrate(file);
+      writeLocal();
+      return Promise.resolve();
+    }
+    S.env = Crypt.header(file);
+    S.sealed = file;
+    // The password this phone used has been changed (Monday): ask it again,
+    // even though the key is already in memory from the phone's own copy.
+    if (S.raw && S.slot && JSON.stringify(file.slots[S.slot] || null) !== S.slotSig) {
+      S.raw = null;
+      return tryRemembered();
+    }
+    if (S.raw) {
+      return Crypt.open(S.raw, file).then(function (d) {
+        S.data = migrate(d); S.locked = false; writeLocal();
+      }, function () { S.raw = null; return tryRemembered(); });
+    }
+    return tryRemembered();
+  }
+
+  function tryRemembered() {
+    var pw = remembered();
+    if (!pw) { lockUp(); return Promise.resolve(); }
+    return unlock(pw, true).then(function (ok) { if (!ok) lockUp(); });
+  }
+
+  function lockUp() {
+    S.raw = null; S.slot = null; S.slotSig = ""; S.locked = true;
+    S.data = emptyLedger();
+    emit();
+  }
+
+  /** Try a password. Resolves true if it opens the ledger. */
+  function unlock(pw, quiet) {
+    if (!S.sealed || !Crypt.available()) return Promise.resolve(false);
+    var sealed = S.sealed;
+    var heads = [S.env, Crypt.header(sealed)].filter(function (h, i, a) {
+      return h && (i === 0 || JSON.stringify(h.slots) !== JSON.stringify(a[0].slots));
+    });
+    var attempt = function (i) {
+      if (i >= heads.length) return Promise.resolve(null);
+      return Crypt.unlock(heads[i], pw).then(function (hit) {
+        if (hit) { hit.sig = JSON.stringify(heads[i].slots[hit.slot]); return hit; }
+        return attempt(i + 1);
+      });
+    };
+    return attempt(0).then(function (hit) {
+      if (!hit) return false;
+      return Crypt.open(hit.raw, sealed).then(function (d) {
+        S.raw = hit.raw;
+        S.slot = hit.slot;
+        S.slotSig = hit.sig;
+        S.data = migrate(d);
+        S.locked = false;
+        remember(pw);
+        writeLocal();
+        if (!quiet) emit();
+        if (S.dirty && canEdit()) flush();
+        return true;
+      }, function () { return false; });
+    });
+  }
+
+  /** This phone forgets the password and locks again. */
+  function lockPhone() {
+    try { localStorage.removeItem(LS_PASS); } catch (e) { /* ignore */ }
+    if (S.env) { writeLocal(); lockUp(); }
+  }
+
+  /** Scorekeeper, once: encrypt the ledger from now on. */
+  function lockLedger(keeperPw, weeklyPw) {
+    if (!canEdit() || S.env || !Crypt.available()) return Promise.reject(new Error("unavailable"));
+    return Crypt.create(keeperPw, weeklyPw).then(function (made) {
+      S.raw = made.raw;
+      S.env = made.head;
+      S.slot = "keeper";
+      S.slotSig = JSON.stringify(made.head.slots.keeper);
+      S.locked = false;
+      remember(keeperPw);
+      S.dirty = true;
+      S.pendingLabel = "Lock the ledger";
+      writeLocal();
+      emit();
+      return flush().then(function () { return { weekly: weeklyPw, key: Crypt.toB64(made.raw) }; });
+    });
+  }
+
+  /** Scorekeeper: a new weekly password now, without waiting for Monday. */
+  function newWeeklyPassword(pw) {
+    if (!canEdit() || !S.env || !S.raw) return Promise.reject(new Error("unavailable"));
+    return Crypt.rotate(S.raw, S.env, pw).then(function (head) {
+      S.env = head;
+      if (S.slot === "weekly") S.slotSig = JSON.stringify(head.slots.weekly);
+      S.dirty = true;
+      S.pendingLabel = "New weekly password";
+      writeLocal();
+      emit();
+      return flush();
+    });
+  }
+
+  function weeklyPassword() {
+    if (!S.env || !S.raw) return Promise.resolve("");
+    return Crypt.weeklyPassword(S.raw, S.env).catch(function () { return ""; });
+  }
+
+  function weekOfPassword() { return S.env && S.env.slots.weekly ? S.env.slots.weekly.week || "" : ""; }
+
+  /** The data key, for the GitHub secret that lets the Monday job work. */
+  function dataKey() { return S.raw ? Crypt.toB64(S.raw) : ""; }
+
   /* ---------------- load ---------------- */
 
   function loadDeployedCopy() {
     return fetch("data.json?ts=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
-        if (looksValid(j) && !S.dirty) { S.data = migrate(j); writeLocal(); }
-        setStatus("idle");
+        if ((Crypt.isLocked(j) || looksValid(j)) && !S.dirty) return adopt(j);
       })
+      .then(function () { setStatus("idle"); })
       .catch(function () { setStatus("offline"); });
   }
 
@@ -226,11 +394,16 @@ PL.Store = (function () {
       S.loadedRemote = true;
       if (j && j.content) {
         var remote = JSON.parse(b64ToUtf8(j.content));
-        if (!looksValid(remote)) throw new Error("malformed");
+        if (!Crypt.isLocked(remote) && !looksValid(remote)) throw new Error("malformed");
         S.sha = j.sha;
-        if (S.dirty) { writeLocal(); setStatus("idle"); return flush(); }
-        S.data = migrate(remote);
-        writeLocal();
+        if (S.dirty) {
+          // Keep this phone's unsaved changes, but take GitHub's newest lock
+          // (Monday's password change) so saving doesn't undo it.
+          if (Crypt.isLocked(remote)) S.env = Crypt.header(remote);
+          writeLocal(); setStatus("idle");
+          return S.locked ? tryRemembered() : flush();
+        }
+        return adopt(remote).then(function () { setStatus("idle"); });
       }
       setStatus("idle");
     }).catch(function (err) {
@@ -299,22 +472,29 @@ PL.Store = (function () {
 
   function flush() {
     clearTimeout(saveTimer);
-    if (!S.dirty || !canEdit() || savingNow) return Promise.resolve();
+    if (!S.dirty || !canEdit() || savingNow || S.locked) return Promise.resolve();
+    if (S.env && !S.raw) return Promise.resolve();   // never save without the key
 
     savingNow = true;
     setStatus("saving");
 
-    var body = {
-      message: S.pendingLabel || "Update ledger",
-      content: utf8ToB64(JSON.stringify(S.data, null, 2) + "\n"),
-      branch: S.repo.branch
-    };
-    if (S.sha) body.sha = S.sha;
+    if (S.env) S.env.eyebrow = (S.data.config && S.data.config.gameName) || "";
+    var payload = S.env
+      ? Crypt.close(S.raw, S.env, S.data).then(function (file) { return JSON.stringify(file, null, 2) + "\n"; })
+      : Promise.resolve(JSON.stringify(S.data, null, 2) + "\n");
 
-    return fetch(apiUrl(), {
-      method: "PUT",
-      headers: Object.assign({ "Content-Type": "application/json" }, headers(true)),
-      body: JSON.stringify(body)
+    return payload.then(function (text) {
+      var body = {
+        message: S.pendingLabel || "Update ledger",
+        content: utf8ToB64(text),
+        branch: S.repo.branch
+      };
+      if (S.sha) body.sha = S.sha;
+      return fetch(apiUrl(), {
+        method: "PUT",
+        headers: Object.assign({ "Content-Type": "application/json" }, headers(true)),
+        body: JSON.stringify(body)
+      });
     }).then(function (res) {
       if (res.status === 409 || res.status === 422) {
         return fetch(apiUrl() + "?ref=" + encodeURIComponent(S.repo.branch) + "&ts=" + Date.now(), {
@@ -322,7 +502,16 @@ PL.Store = (function () {
         }).then(function (r) { return r.ok ? r.json() : null; })
           .then(function (j) {
             savingNow = false;
-            if (j && j.sha) { S.sha = j.sha; return flush(); }
+            if (j && j.sha) {
+              S.sha = j.sha;
+              // Someone else wrote first — usually Monday's password change.
+              // Keep the ledger we're saving, but under GitHub's newest lock.
+              try {
+                var theirs = JSON.parse(b64ToUtf8(j.content));
+                if (S.env && Crypt.isLocked(theirs)) S.env = Crypt.header(theirs);
+              } catch (e) { /* keep ours */ }
+              return flush();
+            }
             throw new Error("conflict");
           });
       }
@@ -381,6 +570,10 @@ PL.Store = (function () {
       return res.json();
     }).then(function (j) {
       var d = JSON.parse(b64ToUtf8(j.content));
+      if (Crypt.isLocked(d)) {
+        if (!S.raw) throw new Error("locked");
+        return Crypt.open(S.raw, d).then(migrate);
+      }
       if (!looksValid(d)) throw new Error("malformed");
       return migrate(d);
     });
@@ -407,6 +600,8 @@ PL.Store = (function () {
     getToken();
     readLocal();
     emit();
+    // Open the phone's own copy first, so the ledger shows before GitHub answers.
+    var first = S.locked ? tryRemembered() : Promise.resolve();
 
     window.addEventListener("online", function () { if (S.dirty) flush(); else load(); });
     document.addEventListener("visibilitychange", function () {
@@ -414,7 +609,7 @@ PL.Store = (function () {
       if (document.visibilityState === "hidden" && S.dirty) flush();
     });
 
-    return load();
+    return first.then(load);
   }
 
   return {
@@ -442,6 +637,15 @@ PL.Store = (function () {
     redoLabel: redoLabel,
     history: history,
     versionAt: versionAt,
-    restoreVersion: restoreVersion
+    restoreVersion: restoreVersion,
+    isEncrypted: isEncrypted,
+    isLocked: isLocked,
+    unlock: unlock,
+    lockPhone: lockPhone,
+    lockLedger: lockLedger,
+    newWeeklyPassword: newWeeklyPassword,
+    weeklyPassword: weeklyPassword,
+    weekOfPassword: weekOfPassword,
+    dataKey: dataKey
   };
 })();

@@ -770,3 +770,37 @@ code { font-family: var(--mono); font-size: .9em; background: var(--surface-2); 
 .videofield .videohint { flex-basis: 100%; margin: 0; }
 .night-body .videofield { padding: 12px 0 0; border-top: 0; }
 @media (prefers-reduced-motion: reduce) { .video-play { transition: none; } }
+
+/* ---------------------------------------------------------------- lock screen */
+body.is-locked > .topbar, body.is-locked > .wrap, body.is-locked > .bottomnav { display: none; }
+#lockscreen[hidden] { display: none; }
+.lock { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 32px 20px calc(32px + env(safe-area-inset-bottom)); box-sizing: border-box; text-align: center; }
+.lock-icon { width: 96px; height: 96px; border-radius: 22px; box-shadow: 0 10px 30px -10px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06); }
+.lock-eyebrow { margin: 22px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+.lock-title { margin: 0; font-family: var(--display); font-size: 30px; line-height: 1.15; color: var(--ink); }
+.lock-card { width: 100%; max-width: 360px; margin-top: 26px; padding: 20px; box-sizing: border-box; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-lift); }
+.lock-card p { margin: 0 0 14px; color: var(--ink-2); font-size: 14px; }
+.pw { position: relative; }
+.pw .input { width: 100%; box-sizing: border-box; padding-right: 46px; font-size: 16px; letter-spacing: .02em; }
+.pw .eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border: 0; background: none;
+  color: var(--muted); display: grid; place-items: center; cursor: pointer; border-radius: 8px; }
+.pw .eye:hover { color: var(--ink); }
+.pw .eye svg { width: 20px; height: 20px; }
+.lock-card .btn { width: 100%; margin-top: 12px; padding: 12px; font-size: 15px; justify-content: center; }
+.input.bad { border-color: var(--neg); box-shadow: 0 0 0 3px color-mix(in srgb, var(--neg) 22%, transparent); }
+.shake { animation: shake .36s var(--ease); }
+@keyframes shake { 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+@media (prefers-reduced-motion: reduce) { .shake { animation: none; } }
+
+/* scorekeeper: weekly password banner and Settings rows */
+.banner-pw { align-items: center; flex-wrap: wrap; background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent-deep); }
+.banner-pw .pw-text { flex: 1 1 220px; }
+.banner-pw .mono { font-family: var(--mono); font-size: 14px; letter-spacing: .02em; }
+.banner-pw .pw-acts { display: flex; gap: 6px; }
+.pwval { font-family: var(--mono); font-size: 15px; color: var(--ink); font-weight: 600; letter-spacing: .02em; }
+.keyval { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-family: var(--mono); font-size: 12px; word-break: break-all; color: var(--ink); }
+.btnpair { display: flex; gap: 6px; flex-shrink: 0; }
+.lockdone { background: var(--pos-soft); color: var(--pos-text); }
+.keyfresh { box-shadow: inset 3px 0 0 var(--accent); }
